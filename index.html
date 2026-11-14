@@ -22,7 +22,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
     radial-gradient(circle at 92% 96%,rgba(120,80,30,.34),transparent 40%),
     radial-gradient(circle at 80% 30%,rgba(255,244,200,.5),transparent 45%),
     var(--paper)}
-#chart h1{font-size:clamp(72px,24vw,120px);line-height:.8;transform:rotate(-4deg);transform-origin:left;margin-top:8px}
+#chart h1{font-size:clamp(72px,24vw,120px);line-height:.8;transform:rotate(-4deg);transform-origin:left;margin-top:8px;width:max-content;pointer-events:none}
 #chart .lead{margin-top:18px;font-size:16px;line-height:1.6;max-width:22em}
 .route{position:absolute;left:0;right:0;top:230px;bottom:20px}
 .route svg{position:absolute;inset:0;width:100%;height:100%}
@@ -51,6 +51,31 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #hint{position:absolute;left:16px;right:16px;bottom:max(28px,env(safe-area-inset-bottom));text-align:center;
   background:rgba(230,211,163,.94);color:var(--ink);border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.5}
 
+#goal .tick{position:absolute;top:0;bottom:0;width:3px;margin-left:-1px;background:rgba(230,211,163,.45)}
+#goal .tick.got{background:var(--gold)}
+#purse{position:absolute;left:12px;top:calc(max(12px,env(safe-area-inset-top)) + 72px);
+  background:rgba(18,30,45,.7);border-radius:10px;padding:4px 10px;font-weight:700;color:var(--gold)}
+#buff{position:absolute;left:12px;top:calc(max(12px,env(safe-area-inset-top)) + 108px);
+  background:rgba(230,211,163,.92);color:var(--ink);border-radius:10px;padding:4px 10px;font-weight:700}
+.coin{display:inline-block;width:.85em;height:.85em;border-radius:50%;background:var(--gold);
+  box-shadow:inset 0 0 0 2px #B98A1F;vertical-align:-.08em;margin-right:.3em}
+#harbor{position:absolute;right:16px;top:max(20px,env(safe-area-inset-top));text-align:right;z-index:2}
+#harbor .have{font-weight:700;font-size:17px}
+#harbor button,#dock .close{font:inherit;font-weight:700;font-size:15px;margin-top:8px;padding:9px 14px;
+  background:var(--ink);color:var(--paper);border:0;border-radius:6px;cursor:pointer}
+#dock{position:fixed;inset:0;background:var(--paper);overflow:auto;padding:max(20px,env(safe-area-inset-top)) 20px 28px;touch-action:pan-y}
+#dock h2{font-size:64px;line-height:.9}
+#dock .have{font-weight:700;margin:6px 0 14px}
+.ship{display:grid;grid-template-columns:96px 1fr;gap:4px 14px;align-items:center;padding:14px 0;border-top:2px solid var(--ink)}
+.ship canvas{position:static;width:96px;height:72px;grid-row:span 3;border-radius:6px}
+.ship h3{font-size:18px}
+.ship p{font-size:14px;line-height:1.4}
+.ship button{font:inherit;font-weight:700;font-size:15px;padding:9px 12px;border:2px solid var(--ink);border-radius:6px;
+  background:transparent;color:var(--ink);cursor:pointer;justify-self:start}
+.ship button.buy{background:var(--blood);border-color:var(--blood);color:#fff}
+.ship button:disabled{opacity:.5;cursor:default}
+#harbor button:focus-visible,#dock button:focus-visible{outline:3px solid var(--blood);outline-offset:2px}
+
 /* 결과 */
 #result{position:fixed;inset:0;display:grid;place-items:center;background:rgba(18,30,45,.6);padding:20px}
 #result .card{background:var(--paper);border:3px solid var(--ink);border-radius:6px;padding:24px 22px;width:min(340px,100%);
@@ -68,17 +93,27 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 <canvas id="c"></canvas>
 
 <div id="hud" hidden>
-  <div id="goal"><div id="goalFill"></div><div id="goalText"></div></div>
+  <div id="goal"><div id="goalFill"></div><i class="tick" style="left:20%"></i><i class="tick" style="left:40%"></i><i class="tick" style="left:60%"></i><i class="tick" style="left:80%"></i><div id="goalText"></div></div>
   <div id="kills"></div>
+  <div id="purse"></div>
+  <div id="buff" hidden></div>
   <ol id="board"></ol>
   <div id="hint">화면 아무 곳이나 누르면 조이스틱이 생겨요. 가고 싶은 쪽으로 밀어요.<br>내 바다 밖으로 나갔다가 돌아오면, 물길로 둘러싼 곳이 내 바다가 돼요.</div>
 </div>
 
 <main id="chart">
+  <div id="harbor"><div class="have" id="haveChart"></div><button id="openDock">내 배 고르기</button></div>
   <h1 class="brush">파도 영토</h1>
   <p class="lead">물길로 바다를 둘러싸서 내 것으로 만드세요. 바다 하나를 정복하면 다음 바다가 열려요.</p>
   <div class="route" id="route"></div>
 </main>
+
+<section id="dock" hidden>
+  <h2 class="brush">조선소</h2>
+  <p class="have" id="haveDock"></p>
+  <div id="ships"></div>
+  <button class="close" id="closeDock">해도로 돌아가기</button>
+</section>
 
 <div id="result" hidden>
   <div class="card">
@@ -86,6 +121,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
     <dl>
       <dt>이번 항해에서 차지한 바다</dt><dd id="rShare"></dd>
       <dt>가라앉힌 배</dt><dd id="rKills"></dd>
+      <dt>얻은 금화</dt><dd id="rCoins"></dd>
       <dt id="rSeaName"></dt><dd id="rProg"></dd>
     </dl>
     <button class="main" id="rMain"></button>
@@ -112,6 +148,14 @@ const CREW = [
   {name:'폭풍의 진', color:'#E07A2E'},
   {name:'앵무 선장', color:'#E6DFCF'},
 ];
+// 내가 고를 수 있는 해적선(겉모습만 다르고 성능은 같다)
+const SHIPS = [
+  {name:'슬루프 "붉은 돛"', desc:'작고 날랜 첫 배.', price:0, color:'#C8323B', sail:'#F3E9D2', hull:'#3B2414'},
+  {name:'브리건틴 "푸른 밤"', desc:'돛대가 둘인 푸른 배.', price:100, color:'#4F7BE8', sail:'#DCE6FF', hull:'#22304F', masts:2},
+  {name:'갤리온 "먹빛 돛"', desc:'검은 돛을 단 큰 배.', price:300, color:'#34323C', sail:'#17161B', hull:'#1E1410', masts:3},
+  {name:'유령선 "새벽 안개"', desc:'안개처럼 빛나는 배.', price:600, color:'#9FE8D8', sail:'#E9FFF9', hull:'#4C6F6A', masts:3},
+];
+const ITEMS = {wind:{name:'순풍', sec:4}, shield:{name:'방어막', sec:7}};
 const $ = id => document.getElementById(id);
 const cv = $('c'), ctx = cv.getContext('2d');
 let W, H, cs;
@@ -125,6 +169,7 @@ addEventListener('resize', resize); resize();
 let save;
 try { save = JSON.parse(localStorage.getItem('pado-yeongto')); } catch(e){}
 if (!save) save = {prog:[0,0,0]};
+save.coins ??= 0; save.ships ??= [0]; save.ship ??= 0;
 function store(){ try { localStorage.setItem('pado-yeongto', JSON.stringify(save)); } catch(e){} }
 
 const G = {state:'chart', sea:0, players:[], best:0};
@@ -153,7 +198,7 @@ function spawn(p){
     const far = t<300 ? 16 : 8;
     if (!ok || G.players.some(q=>q!==p&&q.alive&&Math.hypot(q.x-x,q.y-y)<far)) continue;
     for (let dy=-2;dy<=2;dy++) for (let dx=-2;dx<=2;dx++) if (dx*dx+dy*dy<=5) own[(y+dy)*N+x+dx]=p.id;
-    Object.assign(p,{x:x+.5,y:y+.5,cell:y*N+x,alive:true,trail:[],ang:-Math.PI/2,want:-Math.PI/2,
+    Object.assign(p,{x:x+.5,y:y+.5,cell:y*N+x,alive:true,trail:[],wind:0,shield:0,ang:-Math.PI/2,want:-Math.PI/2,
       d:0,inT:0,rest:.6,a0:Math.random()*6.28,s:Math.random()<.5?1:-1,L1:6,L2:6,home:[x+.5,y+.5]});
     recount(); return true;
   }
@@ -167,7 +212,7 @@ function kill(p, by){
   if (!p.alive) return;
   p.alive=false; p.respawn=3;
   for (let i=0;i<N*N;i++){ if (own[i]===p.id) own[i]=-1; if (trail[i]===p.id) trail[i]=-1; }
-  p.trail=[]; if (by) by.kills++;
+  p.trail=[]; if (by){ by.kills++; if (by.id===0) G.coins+=5; }
   recount();
   if (p.id===0) endRound(false);
 }
@@ -187,13 +232,22 @@ function capture(p){
 const norm = a => Math.atan2(Math.sin(a),Math.cos(a));
 function step(p,dt){
   const turn=(p.id?7:14)*dt; p.ang += Math.max(-turn,Math.min(turn,norm(p.want-p.ang)));
-  let nx=p.x+Math.cos(p.ang)*p.speed*dt, ny=p.y+Math.sin(p.ang)*p.speed*dt;
+  if (p.wind>0) p.wind-=dt; if (p.shield>0) p.shield-=dt;
+  const sp=p.speed*(p.wind>0?1.5:1)*dt;
+  let nx=p.x+Math.cos(p.ang)*sp, ny=p.y+Math.sin(p.ang)*sp;
   p.blocked=false;
   if (isLand(nx,ny)){ p.blocked=true;
     if (!isLand(nx,p.y)) ny=p.y; else if (!isLand(p.x,ny)) nx=p.x; else { nx=p.x; ny=p.y; } }
   p.x=nx; p.y=ny;
+  for (let k=G.items.length-1;k>=0;k--){ const it=G.items[k];
+    if (Math.hypot(it.x-nx,it.y-ny)<1.3){ p[it.type]=ITEMS[it.type].sec; G.items.splice(k,1); } }
   const c=(ny|0)*N+(nx|0); if (c===p.cell) return; p.cell=c;
-  const t=trail[c]; if (t>=0&&t!==p.id) kill(G.players[t],p);
+  const t=trail[c];
+  if (t>=0&&t!==p.id){
+    const o=G.players[t];
+    if (o.shield>0){ o.shield=0; return; }   // 방어막이 물길을 한 번 지켜 준다
+    kill(o,p);
+  }
   if (!p.alive) return;
   if (own[c]===p.id){ if (p.trail.length) capture(p); }
   else if (trail[c]!==p.id){ trail[c]=p.id; p.trail.push(c); }
@@ -220,10 +274,11 @@ function think(b,dt){
 }
 
 function startRound(i){
-  G.sea=i; G.best=0; G.t=0;
+  G.sea=i; G.best=0; G.t=0; G.coins=0; G.mile=0; G.items=[]; G.itemT=3;
   land=landMask(SEAS[i]); own=new Int8Array(N*N).fill(-1); trail=new Int8Array(N*N).fill(-1);
   seaTotal=land.reduce((a,v)=>a+(v?0:1),0);
   G.players=CREW.map((c,id)=>({...c,id,kills:0,count:0,alive:false,trail:[],speed:id?8.2:9,hunter:id%2===1}));
+  Object.assign(G.players[0],SHIPS[save.ship],{name:'나'});
   for (const p of G.players) spawn(p);
   $('chart').hidden=true; $('result').hidden=true; $('hud').hidden=false; $('hint').hidden=false;
   G.state='play'; hud();
@@ -232,11 +287,13 @@ function endRound(won){
   G.state='over';
   const me=G.players[0], i=G.sea;
   save.prog[i]=Math.min(100, won?100:save.prog[i]+Math.round(G.best*100/GOAL));
-  store();
+  if (won) G.coins+=30;
+  save.coins+=G.coins; store();
   const done=save.prog[i]>=100, next=i+1<SEAS.length;
   $('rTitle').textContent = done ? SEAS[i].name+' 정복!' : '배가 가라앉았어요';
   $('rShare').textContent=(G.best*100).toFixed(1)+'%';
   $('rKills').textContent=me.kills+'척';
+  $('rCoins').textContent=G.coins+'닢';
   $('rSeaName').textContent=SEAS[i].name+' 정복도';
   $('rProg').textContent=save.prog[i]+'%';
   const main=$('rMain');
@@ -251,24 +308,47 @@ function hud(){
   $('goalFill').style.width=Math.min(100,share/GOAL*100)+'%';
   $('goalText').textContent=`${(share*100).toFixed(1)}% / 목표 ${GOAL*100}%`;
   $('kills').textContent='격침 '+me.kills;
+  $('purse').innerHTML='<i class="coin"></i>'+G.coins;
+  document.querySelectorAll('#goal .tick').forEach((t,k)=>t.classList.toggle('got',k<G.mile));
+  const b=['wind','shield'].filter(k=>me[k]>0).map(k=>ITEMS[k].name+' '+Math.ceil(me[k])+'초');
+  $('buff').hidden=!b.length; $('buff').textContent=b.join(' · ');
   const rank=G.players.filter(p=>p.alive).sort((a,b)=>b.count-a.count);
   const rows=rank.slice(0,3); if (me.alive&&!rows.includes(me)) rows.push(me);
   $('board').innerHTML=rows.map(p=>`<li class="${p.id?'':'me'}" style="--c:${p.color}"><span>${rank.indexOf(p)+1}. ${p.name}</span><span>${(p.count/seaTotal*100).toFixed(1)}%</span></li>`).join('');
 }
 
+function shipShape(c,s,p){
+  c.fillStyle='rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(-s*.1,s*.12,s*1.05,s*.55,0,0,7); c.fill();
+  c.fillStyle=p.hull||'#3B2414'; c.beginPath(); c.moveTo(s*1.15,0);
+  c.quadraticCurveTo(s*.3,s*.66,-s*.9,s*.42); c.lineTo(-s*.9,-s*.42); c.quadraticCurveTo(s*.3,-s*.66,s*1.15,0); c.fill();
+  c.fillStyle='#8A5A2B'; c.beginPath(); c.ellipse(0,0,s*.7,s*.28,0,0,7); c.fill();
+  c.fillStyle=p.sail||'#F3E9D2'; c.fillRect(-s*.2,-s*.8,s*.24,s*1.6);
+  if ((p.masts||2)>=2) c.fillRect(s*.42,-s*.52,s*.18,s*1.04);
+  if (p.masts>=3) c.fillRect(-s*.68,-s*.6,s*.18,s*1.2);
+  c.fillStyle=p.color; c.fillRect(-s*.2,-s*.3,s*.24,s*.6);
+}
 function drawShip(p,camx,camy){
-  const s=cs*.95;
-  ctx.save(); ctx.translate(p.x*cs-camx,p.y*cs-camy); ctx.rotate(p.ang);
-  ctx.fillStyle='rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(-s*.1,s*.12,s*1.05,s*.55,0,0,7); ctx.fill();
-  ctx.fillStyle='#3B2414'; ctx.beginPath(); ctx.moveTo(s*1.15,0);
-  ctx.quadraticCurveTo(s*.3,s*.66,-s*.9,s*.42); ctx.lineTo(-s*.9,-s*.42); ctx.quadraticCurveTo(s*.3,-s*.66,s*1.15,0); ctx.fill();
-  ctx.fillStyle='#8A5A2B'; ctx.beginPath(); ctx.ellipse(0,0,s*.7,s*.28,0,0,7); ctx.fill();
-  ctx.fillStyle='#F3E9D2'; ctx.fillRect(-s*.2,-s*.8,s*.24,s*1.6); ctx.fillRect(s*.42,-s*.52,s*.18,s*1.04);
-  ctx.fillStyle=p.color; ctx.fillRect(-s*.2,-s*.3,s*.24,s*.6);
+  const s=cs*.95, x=p.x*cs-camx, y=p.y*cs-camy;
+  if (p.shield>0){ ctx.strokeStyle='#E9B63A'; ctx.lineWidth=3; ctx.globalAlpha=.9;
+    ctx.beginPath(); ctx.arc(x,y,s*1.5,0,7); ctx.stroke(); ctx.globalAlpha=1; }
+  ctx.save(); ctx.translate(x,y); ctx.rotate(p.ang);
+  if (p.wind>0){ ctx.strokeStyle='rgba(255,255,255,.8)'; ctx.lineWidth=2; ctx.beginPath();
+    for (const o of [-.5,0,.5]){ ctx.moveTo(-s*1.2,s*o); ctx.lineTo(-s*2.1,s*o); } ctx.stroke(); }
+  shipShape(ctx,s,p);
   ctx.restore();
   ctx.font='700 12px "Gowun Batang",serif'; ctx.textAlign='center';
   ctx.lineWidth=3; ctx.strokeStyle='rgba(18,30,45,.8)'; ctx.fillStyle='#fff';
-  ctx.strokeText(p.name,p.x*cs-camx,p.y*cs-camy-cs*1.3); ctx.fillText(p.name,p.x*cs-camx,p.y*cs-camy-cs*1.3);
+  ctx.strokeText(p.name,x,y-cs*1.3); ctx.fillText(p.name,x,y-cs*1.3);
+}
+function drawItems(camx,camy){
+  for (const it of G.items){
+    const x=it.x*cs-camx, y=it.y*cs-camy+Math.sin(G.t*3+it.x)*2, r=cs*.62;
+    ctx.fillStyle='#6B4423'; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+    ctx.strokeStyle='#E6D3A3'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.stroke();
+    if (it.type==='shield'){ ctx.strokeStyle='#E9B63A'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(x,y,r*.48,0,7); ctx.stroke(); }
+    else { ctx.strokeStyle='#fff'; ctx.lineWidth=2.5; ctx.beginPath();
+      for (const o of [-.3,0,.3]){ ctx.moveTo(x-r*.5,y+r*o); ctx.lineTo(x+r*.5,y+r*o); } ctx.stroke(); }
+  }
 }
 // 그리기: 칸 그대로가 아니라, 칸을 살짝 번지게 한 값에서 경계선을 뽑아 부드러운 곡선으로 그린다
 const TH=.42;
@@ -340,6 +420,7 @@ function draw(){
   ctx.fillStyle='#D9C48F'; ctx.fill(L);
   const gx0=.5*cs-camx, gy0=.5*cs-camy, gx1=(N-.5)*cs-camx, gy1=(N-.5)*cs-camy;
   ctx.fillRect(0,0,W,gy0+1); ctx.fillRect(0,gy1-1,W,H); ctx.fillRect(0,0,gx0+1,H); ctx.fillRect(gx1-1,0,W,H);
+  drawItems(camx,camy);
   for (const p of G.players) if (p.alive&&p.id) drawShip(p,camx,camy);
   if (me.alive) drawShip(me,camx,camy);
   drawJoy();
@@ -358,6 +439,10 @@ function frame(t){
     }
     if (G.state==='play'){
       const share=G.players[0].count/seaTotal; if (share>G.best) G.best=share;
+      while (G.mile<4&&share>=(G.mile+1)*GOAL/5){ G.mile++; G.coins+=10; }
+      if ((G.itemT-=dt)<0&&G.items.length<4){ G.itemT=6;
+        for (let t=0;t<40;t++){ const x=2+Math.random()*(N-4)|0, y=2+Math.random()*(N-4)|0;
+          if (!land[y*N+x]){ G.items.push({x:x+.5,y:y+.5,type:Math.random()<.5?'wind':'shield'}); break; } } }
       if ((hudT+=dt)>.2){ hudT=0; hud(); }
       if (share>=GOAL) endRound(true);
     }
@@ -385,8 +470,33 @@ function drawJoy(){
   ctx.fillStyle='rgba(230,211,163,.85)'; ctx.beginPath(); ctx.arc(joy.x+joy.kx,joy.y+joy.ky,JOY*.42,0,7); ctx.fill();
 }
 
+const coinText=()=>'<i class="coin"></i>금화 '+save.coins+'닢';
+function showDock(){
+  $('dock').hidden=false; $('haveDock').innerHTML=coinText();
+  $('ships').innerHTML=SHIPS.map((sh,i)=>{
+    const own=save.ships.includes(i), on=save.ship===i;
+    return `<div class="ship"><canvas width="192" height="144"></canvas><h3>${sh.name}</h3><p>${sh.desc}</p>
+      ${on?'<button disabled>지금 타는 배</button>':own?`<button data-pick="${i}">이 배 타기</button>`
+        :`<button class="buy" data-buy="${i}" ${save.coins<sh.price?'disabled':''}>금화 ${sh.price}닢으로 사기</button>`}</div>`;
+  }).join('');
+  document.querySelectorAll('.ship').forEach((el,i)=>{
+    const c=el.querySelector('canvas').getContext('2d');
+    c.fillStyle='#1C5D73'; c.fillRect(0,0,192,144); c.fillStyle=SHIPS[i].color; c.beginPath(); c.arc(40,150,90,0,7); c.fill();
+    c.translate(104,70); c.rotate(-.5); shipShape(c,44,SHIPS[i]);
+  });
+}
+$('ships').onclick=e=>{
+  const b=e.target.closest('button'); if (!b) return;
+  if (b.dataset.buy){ const i=+b.dataset.buy; if (save.coins<SHIPS[i].price) return;
+    save.coins-=SHIPS[i].price; save.ships.push(i); save.ship=i; }
+  else if (b.dataset.pick) save.ship=+b.dataset.pick; else return;
+  store(); showDock();
+};
+$('openDock').onclick=showDock;
+$('closeDock').onclick=()=>{ $('dock').hidden=true; showChart(); };
 function showChart(){
   G.state='chart'; $('result').hidden=true; $('hud').hidden=true; $('chart').hidden=false;
+  $('haveChart').innerHTML=coinText();
   const pos=[[30,14],[70,48],[32,82]];
   $('route').innerHTML=`<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
     <path d="M30 14 C60 20,80 30,70 48 S20 60,32 82" fill="none" stroke="#22303F" stroke-width="2.5" stroke-dasharray="7 7" vector-effect="non-scaling-stroke"/></svg>`
