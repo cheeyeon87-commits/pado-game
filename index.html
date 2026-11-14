@@ -71,7 +71,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
   <div id="goal"><div id="goalFill"></div><div id="goalText"></div></div>
   <div id="kills"></div>
   <ol id="board"></ol>
-  <div id="hint">화면을 끌어서 배를 몰아요.<br>내 바다 밖으로 나갔다가 돌아오면, 물길로 둘러싼 곳이 내 바다가 돼요.</div>
+  <div id="hint">화면 아무 곳이나 누르면 조이스틱이 생겨요. 가고 싶은 쪽으로 밀어요.<br>내 바다 밖으로 나갔다가 돌아오면, 물길로 둘러싼 곳이 내 바다가 돼요.</div>
 </div>
 
 <main id="chart">
@@ -285,6 +285,7 @@ function draw(){
   ctx.globalAlpha=1;
   for (const p of G.players) if (p.alive&&p.id) drawShip(p,camx,camy);
   if (me.alive) drawShip(me,camx,camy);
+  drawJoy();
 }
 
 let last=0, hudT=0;
@@ -309,17 +310,23 @@ function frame(t){
 }
 requestAnimationFrame(frame);
 
-// 조종: 손가락을 댄 곳을 기준으로 끈 방향으로 배가 돈다(화면 어디서든 조이스틱처럼)
-let anchor=null;
-cv.addEventListener('pointerdown',e=>{ anchor=[e.clientX,e.clientY]; });
+// 조종: 손가락을 댄 자리에 작은 조이스틱이 생긴다. 그 중심에서 손가락을 민 방향으로 배가 간다
+const JOY=34;
+let joy=null;
+cv.addEventListener('pointerdown',e=>{ if (G.state==='play') joy={x:e.clientX,y:e.clientY,kx:0,ky:0}; });
 cv.addEventListener('pointermove',e=>{
-  if (!anchor||G.state!=='play') return;
-  const dx=e.clientX-anchor[0], dy=e.clientY-anchor[1], d=Math.hypot(dx,dy);
-  if (d<6) return;
-  G.players[0].want=Math.atan2(dy,dx);
-  if (d>14){ anchor[0]=e.clientX-dx/d*14; anchor[1]=e.clientY-dy/d*14; }
+  if (!joy||G.state!=='play') return;
+  const dx=e.clientX-joy.x, dy=e.clientY-joy.y, d=Math.hypot(dx,dy), k=Math.min(1,JOY/(d||1));
+  joy.kx=dx*k; joy.ky=dy*k;
+  if (d>6) G.players[0].want=Math.atan2(dy,dx);
 });
-addEventListener('pointerup',()=>anchor=null); addEventListener('pointercancel',()=>anchor=null);
+addEventListener('pointerup',()=>joy=null); addEventListener('pointercancel',()=>joy=null);
+function drawJoy(){
+  if (!joy||G.state!=='play') return;
+  ctx.fillStyle='rgba(230,211,163,.22)'; ctx.strokeStyle='rgba(230,211,163,.7)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(joy.x,joy.y,JOY,0,7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='rgba(230,211,163,.85)'; ctx.beginPath(); ctx.arc(joy.x+joy.kx,joy.y+joy.ky,JOY*.42,0,7); ctx.fill();
+}
 
 function showChart(){
   G.state='chart'; $('result').hidden=true; $('hud').hidden=true; $('chart').hidden=false;
