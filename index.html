@@ -186,7 +186,7 @@ function capture(p){
 }
 const norm = a => Math.atan2(Math.sin(a),Math.cos(a));
 function step(p,dt){
-  const turn=7*dt; p.ang += Math.max(-turn,Math.min(turn,norm(p.want-p.ang)));
+  const turn=(p.id?7:14)*dt; p.ang += Math.max(-turn,Math.min(turn,norm(p.want-p.ang)));
   let nx=p.x+Math.cos(p.ang)*p.speed*dt, ny=p.y+Math.sin(p.ang)*p.speed*dt;
   p.blocked=false;
   if (isLand(nx,ny)){ p.blocked=true;
@@ -309,8 +309,17 @@ function frame(t){
 }
 requestAnimationFrame(frame);
 
-function steer(e){ if (G.state==='play') G.players[0].want=Math.atan2(e.clientY-H/2,e.clientX-W/2); }
-cv.addEventListener('pointerdown',steer); cv.addEventListener('pointermove',e=>{ if (e.buttons||e.pointerType==='touch') steer(e); });
+// 조종: 손가락을 댄 곳을 기준으로 끈 방향으로 배가 돈다(화면 어디서든 조이스틱처럼)
+let anchor=null;
+cv.addEventListener('pointerdown',e=>{ anchor=[e.clientX,e.clientY]; });
+cv.addEventListener('pointermove',e=>{
+  if (!anchor||G.state!=='play') return;
+  const dx=e.clientX-anchor[0], dy=e.clientY-anchor[1], d=Math.hypot(dx,dy);
+  if (d<6) return;
+  G.players[0].want=Math.atan2(dy,dx);
+  if (d>14){ anchor[0]=e.clientX-dx/d*14; anchor[1]=e.clientY-dy/d*14; }
+});
+addEventListener('pointerup',()=>anchor=null); addEventListener('pointercancel',()=>anchor=null);
 
 function showChart(){
   G.state='chart'; $('result').hidden=true; $('hud').hidden=true; $('chart').hidden=false;
