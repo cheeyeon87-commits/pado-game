@@ -187,7 +187,23 @@ function landMask(s){
   }
   return m;
 }
-const isLand = (x,y) => x<0||y<0||x>=WU||y>=WU||land[(y*U|0)*N+(x*U|0)] === 1;
+// 해안 충돌은 칸이 아니라 화면에 그리는 것과 같은 "번진 육지 값"으로 판정한다(해안선이 매끈해서 타고 가기 좋다)
+const BW=[1,3,5,6,5,3,1];
+let landF;
+function buildLandF(){
+  landF=new Float32Array(N*N);
+  for (let y=0;y<N;y++) for (let x=0;x<N;x++){ let v=0;
+    for (let dy=-3;dy<=3;dy++) for (let dx=-3;dx<=3;dx++){ const xx=x+dx, yy=y+dy;
+      if (xx<0||yy<0||xx>=N||yy>=N||land[yy*N+xx]) v+=BW[dx+3]*BW[dy+3]; }
+    landF[y*N+x]=v/576; }
+}
+function landV(x,y){
+  const gx=x*U-.5, gy=y*U-.5;
+  if (gx<0||gy<0||gx>=N-1||gy>=N-1) return 1;
+  const x0=gx|0, y0=gy|0, fx=gx-x0, fy=gy-y0, i=y0*N+x0;
+  return (landF[i]*(1-fx)+landF[i+1]*fx)*(1-fy)+(landF[i+N]*(1-fx)+landF[i+N+1]*fx)*fy;
+}
+const isLand = (x,y) => landV(x,y) >= .4;
 const cellAt = (x,y) => (y*U|0)*N+(x*U|0);
 
 function spawn(p){
@@ -201,7 +217,7 @@ function spawn(p){
     if (!ok || G.players.some(q=>q!==p&&q.alive&&Math.hypot(q.x-x,q.y-y)<far)) continue;
     const R=2.6*U;
     for (let dy=-r;dy<=r;dy++) for (let dx=-r;dx<=r;dx++) if (dx*dx+dy*dy<=R*R) own[(gy+dy)*N+gx+dx]=p.id;
-    Object.assign(p,{x,y,cell:gy*N+gx,alive:true,trail:[],path:[],wind:0,shield:0,boost:0,hugT:0,side:1,
+    Object.assign(p,{x,y,cell:gy*N+gx,alive:true,trail:[],path:[],wind:0,shield:0,boost:0,hugT:0,side:1,sideWant:0,stuck:false,
       ang:-Math.PI/2,want:-Math.PI/2,head:-Math.PI/2,d:0,thinkT:0,a0:null,s:1,L1:6,L2:6,home:[x,y]});
     recount(); return true;
   }
@@ -263,14 +279,30 @@ function step(p,dt){
 function move(p,d){
   let a=p.ang, hug=false;
   if (isLand(p.x+Math.cos(a)*d,p.y+Math.sin(a)*d)){
-    hug=true; a=null;                       // 막히면 해안을 따라 미끄러질 방향을 찾는다
-    for (let k=1;k<=6&&a===null;k++) for (const sd of [p.side,-p.side]){
-      if (k===6&&sd!==p.side) break;       // 반대쪽으로는 직각까지 꺾지 않는다(구석에서 떨지 않게)
-      const b=p.ang+sd*k*.2618;
-      if (!isLand(p.x+Math.cos(b)*d,p.y+Math.sin(b)*d)){ a=b; p.side=sd; break; }
+    hug=true;                               // 막히면 해안선 방향(접선)을 구해 그쪽으로 미끄러진다
+    const e=.3, gx=landV(p.x+e,p.y)-landV(p.x-e,p.y), gy=landV(p.x,p.y+e)-landV(p.x,p.y-e), g=Math.hypot(gx,gy);
+    if (g<1e-6) return false;
+    let tx=-gy/g, ty=gx/g;
+    const dot=tx*Math.cos(a)+ty*Math.sin(a), sameStick=Math.abs(norm(p.want-p.sideWant))<.6;
+    if (p.stuck&&sameStick) return false;   // 구석에서 멈췄으면 조이스틱 방향을 바꿀 때까지 그대로
+    p.stuck=false;
+    if (p.hugT<=0||!sameStick){             // 처음 닿았거나 조이스틱을 돌렸을 때만 타는 방향을 고른다
+      if (Math.abs(dot)>=.08) p.side=dot>0?1:-1;
+      p.sideWant=p.want;
+    } else if (dot*p.side<-.5){ p.stuck=true; return false; }   // 해안이 굽어 거꾸로 가게 되면 멈춘다
+    tx*=p.side; ty*=p.side;
+    const sp=d;
+    let nx=p.x+tx*sp, ny=p.y+ty*sp;
+    for (let k=0;k<2;k++){                  // 해안선 바로 바깥 선 위로 정확히 올려놓는다(들락날락 떨림 방지)
+      const v=landV(nx,ny)-.39, hx=(landV(nx+e,ny)-landV(nx-e,ny))/(2*e), hy=(landV(nx,ny+e)-landV(nx,ny-e))/(2*e), h2=hx*hx+hy*hy;
+      if (h2<1e-9) break;
+      const m=Math.max(-d*1.5,Math.min(d*1.5,v/Math.sqrt(h2))), h=Math.sqrt(h2);
+      nx-=hx/h*m; ny-=hy/h*m;
     }
-    if (a===null) return false;            // 구석에 막혀 못 움직이면 빨라지지 않는다
+    if (isLand(nx,ny)) return false;
+    a=Math.atan2(ny-p.y,nx-p.x); d=Math.hypot(nx-p.x,ny-p.y);
   }
+  if (!hug) p.stuck=false;
   p.head += norm(a-p.head)*.35;
   const ox=p.x, oy=p.y;
   p.x+=Math.cos(a)*d; p.y+=Math.sin(a)*d;
@@ -349,7 +381,7 @@ function think(b,dt){
 
 function startRound(i){
   G.sea=i; G.best=0; G.t=0; G.coins=0; G.mile=0; G.items=[]; G.itemT=3;
-  land=landMask(SEAS[i]); own=new Int8Array(N*N).fill(-1); trail=new Int8Array(N*N).fill(-1);
+  land=landMask(SEAS[i]); buildLandF(); own=new Int8Array(N*N).fill(-1); trail=new Int8Array(N*N).fill(-1);
   seaTotal=land.reduce((a,v)=>a+(v?0:1),0);
   G.players=CREW.map((c,id)=>({...c,id,kills:0,count:0,alive:false,trail:[],speed:id?8.2:9,hunter:id!==4,bold:.8+id*.12}));
   Object.assign(G.players[0],SHIPS[save.ship],{name:'나'});
@@ -426,7 +458,7 @@ function drawItems(camx,camy){
   }
 }
 // 그리기: 칸 그대로가 아니라, 칸을 살짝 번지게 한 값에서 경계선을 뽑아 부드러운 곡선으로 그린다
-const TH=.47, BW=[1,3,5,6,5,3,1];   // 넓게 번지게 할수록 영토 가장자리가 고르다
+const TH=.47;   // BW로 넓게 번지게 할수록 영토 가장자리가 고르다
 let field=null;
 function fields(x0,y0,x1,y1){
   const K=G.players.length+1;
