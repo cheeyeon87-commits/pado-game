@@ -220,7 +220,21 @@ function kill(p, by){
   if (p.id===0) endRound(false);
 }
 // 물길을 내 바다에 이었을 때: 물길 + 물길로 둘러싸인 안쪽을 모두 내 바다로 만든다
+// 영토가 남에게 잘려 여러 조각이 되면, 배가 있는 조각(바다에 나가 있으면 출발한 조각)만 남기고 나머지는 사라진다
+function prune(o){
+  const ref=o.path.length?o.path[0]:[o.x,o.y], rx=ref[0]*U, ry=ref[1]*U;
+  let seed=cellAt(ref[0],ref[1]);
+  if (own[seed]!==o.id){ seed=-1; let bd=1e9;
+    for (let i=0;i<N*N;i++) if (own[i]===o.id){ const d=(i%N-rx)**2+((i/N|0)-ry)**2; if (d<bd){ bd=d; seed=i; } } }
+  if (seed<0) return;
+  const seen=new Uint8Array(N*N), q=[seed]; seen[seed]=1;
+  const push=i=>{ if (!seen[i]&&own[i]===o.id){ seen[i]=1; q.push(i); } };
+  while (q.length){ const i=q.pop(), x=i%N;
+    if (x>0) push(i-1); if (x<N-1) push(i+1); if (i>=N) push(i-N); if (i<N*(N-1)) push(i+N); }
+  for (let i=0;i<N*N;i++) if (own[i]===o.id&&!seen[i]) own[i]=-1;
+}
 function capture(p){
+  const before=G.players.map(o=>o.count);
   for (const c of p.trail){ own[c]=p.id; trail[c]=-1; }
   p.trail=[]; p.path=[];
   const seen=new Uint8Array(N*N), q=[];
@@ -229,6 +243,8 @@ function capture(p){
   while(q.length){ const i=q.pop(), x=i%N;
     if (x>0) push(i-1); if (x<N-1) push(i+1); if (i>=N) push(i-N); if (i<N*(N-1)) push(i+N); }
   for (let i=0;i<N*N;i++) if (!seen[i]&&!land[i]) own[i]=p.id;
+  recount();
+  for (const o of G.players) if (o!==p&&o.alive&&o.count>0&&o.count<before[o.id]) prune(o);
   recount();
   for (const o of G.players) if (o.alive&&o.count===0) kill(o,p);
 }
@@ -410,7 +426,7 @@ function drawItems(camx,camy){
   }
 }
 // 그리기: 칸 그대로가 아니라, 칸을 살짝 번지게 한 값에서 경계선을 뽑아 부드러운 곡선으로 그린다
-const TH=.45, BW=[1,2,3,2,1];
+const TH=.47, BW=[1,3,5,6,5,3,1];   // 넓게 번지게 할수록 영토 가장자리가 고르다
 let field=null;
 function fields(x0,y0,x1,y1){
   const K=G.players.length+1;
@@ -418,11 +434,11 @@ function fields(x0,y0,x1,y1){
   for (const f of field) for (let y=y0;y<=y1;y++) f.fill(0,y*N+x0,y*N+x1+1);
   for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
     const n=y*N+x;
-    for (let dy=-2;dy<=2;dy++) for (let dx=-2;dx<=2;dx++){
+    for (let dy=-3;dy<=3;dy++) for (let dx=-3;dx<=3;dx++){
       const xx=x+dx, yy=y+dy;
       let id=K-1;
       if (xx>=0&&yy>=0&&xx<N&&yy<N){ const i=yy*N+xx; id=land[i]?K-1:own[i]; }
-      if (id>=0) field[id][n]+=BW[dx+2]*BW[dy+2]/81;
+      if (id>=0) field[id][n]+=BW[dx+3]*BW[dy+3]/576;
     }
   }
 }
