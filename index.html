@@ -251,7 +251,7 @@ function prune(o){
 }
 function capture(p){
   const before=G.players.map(o=>o.count);
-  for (const c of p.trail){ own[c]=p.id; trail[c]=-1; }
+  for (const c of p.trail){ if (!land[c]) own[c]=p.id; trail[c]=-1; }
   p.trail=[]; p.path=[];
   const seen=new Uint8Array(N*N), q=[];
   const push=i=>{ if(!seen[i]&&own[i]!==p.id){seen[i]=1;q.push(i);} };
@@ -327,7 +327,7 @@ function move(p,d){
   const gx=Math.round(p.x*U)-1, gy=Math.round(p.y*U)-1;
   for (let dy=0;dy<2;dy++) for (let dx=0;dx<2;dx++){
     const i=(gy+dy)*N+gx+dx;
-    if (!land[i]&&own[i]!==p.id&&trail[i]<0){ trail[i]=p.id; p.trail.push(i); }
+    if (own[i]!==p.id&&trail[i]<0){ trail[i]=p.id; p.trail.push(i); }   // 해안을 탈 때를 위해 육지 칸에도 남긴다
   }
   return hug;
 }
