@@ -98,7 +98,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
   <div id="purse"></div>
   <div id="buff" hidden></div>
   <ol id="board"></ol>
-  <div id="hint">화면 아무 곳이나 누르면 조이스틱이 생겨요. 가고 싶은 쪽으로 밀어요.<br>내 바다 밖으로 나갔다가 돌아오면, 물길로 둘러싼 곳이 내 바다가 돼요.</div>
+  <div id="hint">화면 아무 곳이나 누르면 조이스틱이 생겨요. 가고 싶은 쪽으로 밀어요.<br>내 바다 밖으로 나갔다가 돌아오면, 물길로 둘러싼 곳이 내 바다가 돼요.<br>해안에 붙어서 가면 점점 빨라져요.</div>
 </div>
 
 <main id="chart">
@@ -130,7 +130,8 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 </div>
 
 <script>
-const N = 84, GOAL = 0.5;
+// WU: 바다 크기(단위). U: 단위 하나를 몇 칸으로 쪼개는지(클수록 곡선이 곱다). 배 위치와 속도는 단위로 센다
+const WU = 84, U = 2, N = WU*U, GOAL = 0.5;
 // 바다 모양: [중심x, 중심y, 가로반지름, 세로반지름] 타원. sea는 바다, isl은 섬/육지 (단순화한 모양)
 const SEAS = [
   {name:'카리브해', sea:[[.5,.52,.47,.36],[.24,.34,.22,.2]],
@@ -186,20 +187,22 @@ function landMask(s){
   }
   return m;
 }
-const isLand = (x,y) => land[(y|0)*N+(x|0)] === 1;
+const isLand = (x,y) => x<0||y<0||x>=WU||y>=WU||land[(y*U|0)*N+(x*U|0)] === 1;
+const cellAt = (x,y) => (y*U|0)*N+(x*U|0);
 
 function spawn(p){
   for (let t=0;t<600;t++){
-    const x = 4+Math.random()*(N-8)|0, y = 4+Math.random()*(N-8)|0;
-    let ok = true;
-    for (let dy=-3;dy<=3&&ok;dy++) for (let dx=-3;dx<=3;dx++){
-      const i=(y+dy)*N+x+dx; if (land[i]||own[i]>=0||trail[i]>=0){ok=false;break;}
+    const x=6+Math.random()*(WU-12), y=6+Math.random()*(WU-12), gx=x*U|0, gy=y*U|0, r=3.5*U|0;
+    let ok=true;
+    for (let dy=-r;dy<=r&&ok;dy++) for (let dx=-r;dx<=r;dx++){
+      const i=(gy+dy)*N+gx+dx; if (land[i]||own[i]>=0||trail[i]>=0){ok=false;break;}
     }
     const far = t<300 ? 16 : 8;
     if (!ok || G.players.some(q=>q!==p&&q.alive&&Math.hypot(q.x-x,q.y-y)<far)) continue;
-    for (let dy=-2;dy<=2;dy++) for (let dx=-2;dx<=2;dx++) if (dx*dx+dy*dy<=5) own[(y+dy)*N+x+dx]=p.id;
-    Object.assign(p,{x:x+.5,y:y+.5,cell:y*N+x,alive:true,trail:[],wind:0,shield:0,ang:-Math.PI/2,want:-Math.PI/2,
-      d:0,inT:0,rest:.6,a0:Math.random()*6.28,s:Math.random()<.5?1:-1,L1:6,L2:6,home:[x+.5,y+.5]});
+    const R=2.6*U;
+    for (let dy=-r;dy<=r;dy++) for (let dx=-r;dx<=r;dx++) if (dx*dx+dy*dy<=R*R) own[(gy+dy)*N+gx+dx]=p.id;
+    Object.assign(p,{x,y,cell:gy*N+gx,alive:true,trail:[],path:[],wind:0,shield:0,boost:0,hugT:0,side:1,
+      ang:-Math.PI/2,want:-Math.PI/2,head:-Math.PI/2,d:0,thinkT:0,a0:null,s:1,L1:6,L2:6,home:[x,y]});
     recount(); return true;
   }
   return false;
@@ -212,14 +215,14 @@ function kill(p, by){
   if (!p.alive) return;
   p.alive=false; p.respawn=3;
   for (let i=0;i<N*N;i++){ if (own[i]===p.id) own[i]=-1; if (trail[i]===p.id) trail[i]=-1; }
-  p.trail=[]; if (by){ by.kills++; if (by.id===0) G.coins+=5; }
+  p.trail=[]; p.path=[]; if (by){ by.kills++; if (by.id===0) G.coins+=5; }
   recount();
   if (p.id===0) endRound(false);
 }
 // 물길을 내 바다에 이었을 때: 물길 + 물길로 둘러싸인 안쪽을 모두 내 바다로 만든다
 function capture(p){
   for (const c of p.trail){ own[c]=p.id; trail[c]=-1; }
-  p.trail=[];
+  p.trail=[]; p.path=[];
   const seen=new Uint8Array(N*N), q=[];
   const push=i=>{ if(!seen[i]&&own[i]!==p.id){seen[i]=1;q.push(i);} };
   for (let k=0;k<N;k++){ push(k); push((N-1)*N+k); push(k*N); push(k*N+N-1); }
@@ -233,43 +236,98 @@ const norm = a => Math.atan2(Math.sin(a),Math.cos(a));
 function step(p,dt){
   const turn=(p.id?7:14)*dt; p.ang += Math.max(-turn,Math.min(turn,norm(p.want-p.ang)));
   if (p.wind>0) p.wind-=dt; if (p.shield>0) p.shield-=dt;
-  const sp=p.speed*(p.wind>0?1.5:1)*dt;
-  let nx=p.x+Math.cos(p.ang)*sp, ny=p.y+Math.sin(p.ang)*sp;
-  p.blocked=false;
-  if (isLand(nx,ny)){ p.blocked=true;
-    if (!isLand(nx,p.y)) ny=p.y; else if (!isLand(p.x,ny)) nx=p.x; else { nx=p.x; ny=p.y; } }
-  p.x=nx; p.y=ny;
-  for (let k=G.items.length-1;k>=0;k--){ const it=G.items[k];
-    if (Math.hypot(it.x-nx,it.y-ny)<1.3){ p[it.type]=ITEMS[it.type].sec; G.items.splice(k,1); } }
-  const c=(ny|0)*N+(nx|0); if (c===p.cell) return; p.cell=c;
-  const t=trail[c];
-  if (t>=0&&t!==p.id){
-    const o=G.players[t];
-    if (o.shield>0){ o.shield=0; return; }   // 방어막이 물길을 한 번 지켜 준다
-    kill(o,p);
-  }
-  if (!p.alive) return;
-  if (own[c]===p.id){ if (p.trail.length) capture(p); }
-  else if (trail[c]!==p.id){ trail[c]=p.id; p.trail.push(c); }
+  const dist=p.speed*Math.min(2.5,(1+p.boost)*(p.wind>0?1.5:1))*dt, n=Math.ceil(dist*U/.45);
+  let hug=false; const ox=p.x, oy=p.y;
+  for (let k=0;k<n&&p.alive&&G.state==='play';k++) if (move(p,dist/n)) hug=true;
+  // 해안 타기: 해안에 붙어 나아가는 동안 조금씩 빨라져 최대 2배. 떨어지거나 구석에 막히면 금방 원래 속도로
+  if (hug&&Math.hypot(p.x-ox,p.y-oy)>dist*.5) p.hugT=.3; else p.hugT-=dt;
+  p.boost = p.hugT>0 ? Math.min(1,p.boost+dt*.45) : Math.max(0,p.boost-dt*1.5);
+  p.blocked=hug;
 }
-// 컴퓨터 배: 내 바다에서 나가 네모로 돌아 집으로 돌아온다. 사냥꾼은 가까운 내 물길을 노린다
+function move(p,d){
+  let a=p.ang, hug=false;
+  if (isLand(p.x+Math.cos(a)*d,p.y+Math.sin(a)*d)){
+    hug=true; a=null;                       // 막히면 해안을 따라 미끄러질 방향을 찾는다
+    for (let k=1;k<=6&&a===null;k++) for (const sd of [p.side,-p.side]){
+      if (k===6&&sd!==p.side) break;       // 반대쪽으로는 직각까지 꺾지 않는다(구석에서 떨지 않게)
+      const b=p.ang+sd*k*.2618;
+      if (!isLand(p.x+Math.cos(b)*d,p.y+Math.sin(b)*d)){ a=b; p.side=sd; break; }
+    }
+    if (a===null) return false;            // 구석에 막혀 못 움직이면 빨라지지 않는다
+  }
+  p.head += norm(a-p.head)*.35;
+  const ox=p.x, oy=p.y;
+  p.x+=Math.cos(a)*d; p.y+=Math.sin(a)*d;
+  for (let k=G.items.length-1;k>=0;k--){ const it=G.items[k];
+    if (Math.hypot(it.x-p.x,it.y-p.y)<1.3){ p[it.type]=ITEMS[it.type].sec; G.items.splice(k,1); } }
+  const c=cellAt(p.x,p.y);
+  if (c!==p.cell){
+    p.cell=c;
+    const t=trail[c];
+    if (t>=0&&t!==p.id){
+      const o=G.players[t];
+      if (o.shield>0) o.shield=0;            // 방어막이 물길을 한 번 지켜 준다
+      else kill(o,p);
+      if (!p.alive) return hug;
+    }
+    if (own[c]===p.id){ if (p.trail.length) capture(p); return hug; }
+  }
+  if (own[c]===p.id) return hug;
+  // 물길: 배 둘레 2x2칸에 남긴다(물길 폭이 배 폭과 비슷해지게)
+  if (!p.path.length) p.path.push([ox,oy]);
+  const L=p.path[p.path.length-1]; if (Math.hypot(p.x-L[0],p.y-L[1])>.3) p.path.push([p.x,p.y]);
+  const gx=Math.round(p.x*U)-1, gy=Math.round(p.y*U)-1;
+  for (let dy=0;dy<2;dy++) for (let dx=0;dx<2;dx++){
+    const i=(gy+dy)*N+gx+dx;
+    if (!land[i]&&own[i]!==p.id&&trail[i]<0){ trail[i]=p.id; p.trail.push(i); }
+  }
+  return hug;
+}
+// 컴퓨터 배의 판단(1초에 10번).
+// 1) 내 물길이 위험하면 집으로 2) 가까운 남의 물길은 끊으러 3) 아니면 영토 크기에 맞는 네모를 그리며 넓힌다
+function scan(b,R,hit){
+  const cx=b.x*U|0, cy=b.y*U|0, r=R*U|0; let best=null, bd=1e9;
+  for (let y=Math.max(0,cy-r);y<=Math.min(N-1,cy+r);y++) for (let x=Math.max(0,cx-r);x<=Math.min(N-1,cx+r);x++){
+    if (!hit(y*N+x)) continue;
+    const d=(x-cx)**2+(y-cy)**2; if (d<bd){ bd=d; best=[(x+.5)/U,(y+.5)/U,Math.sqrt(d)/U]; }
+  }
+  return best;
+}
+const clearAhead=(b,a,d)=>!isLand(b.x+Math.cos(a)*d,b.y+Math.sin(a)*d)&&!isLand(b.x+Math.cos(a)*d*.5,b.y+Math.sin(a)*d*.5);
 function think(b,dt){
-  if (own[b.cell]===b.id && !b.trail.length){
-    b.d=0; b.home=[b.x,b.y]; b.inT+=dt;
-    if (b.inT>b.rest){ b.inT=0; b.rest=.4+Math.random()*1.4; b.a0=Math.random()*6.28;
-      b.s=Math.random()<.5?1:-1; b.L1=4+Math.random()*9; b.L2=4+Math.random()*9; }
+  if ((b.thinkT-=dt)>0) return; b.thinkT=.1;
+  const out=b.trail.length>0, to=(x,y)=>Math.atan2(y-b.y,x-b.x);
+  if (!out){
+    b.d=0; b.home=[b.x,b.y];
+    if (b.a0===null||b.blocked){           // 아직 내 바다가 아닌 쪽을 골라 나간다
+      const rad=Math.sqrt(b.count/3.14)/U, cand=[];
+      for (let k=0;k<12;k++){ const a=k*.5236, x=b.x+Math.cos(a)*(rad+4), y=b.y+Math.sin(a)*(rad+4);
+        if (!isLand(x,y)&&own[cellAt(x,y)]!==b.id&&clearAhead(b,a,3)) cand.push(a); }
+      b.a0=cand.length?cand[Math.random()*cand.length|0]:Math.random()*6.28;
+      b.s=Math.random()<.5?1:-1;
+      const size=Math.min(15,(3+rad*.9)*b.bold);
+      b.L1=size*(.7+Math.random()*.6); b.L2=size*(.7+Math.random()*.6);
+    }
     b.want=b.a0;
   } else {
-    b.d+=b.speed*dt; b.inT=0;
-    if (b.d>2*b.L1+b.L2+30){ const i=own.indexOf(b.id); if (i>=0) b.home=[i%N+.5,(i/N|0)+.5]; }
-    b.want = b.d<b.L1 ? b.a0 : b.d<b.L1+b.L2 ? b.a0+b.s*Math.PI/2 : b.d<2*b.L1+b.L2 ? b.a0+b.s*Math.PI
-           : Math.atan2(b.home[1]-b.y,b.home[0]-b.x);
+    b.d+=b.speed*.1;
+    let danger=false;                       // 남의 배가 내 물길에, 내가 집에 가는 것보다 빨리 닿을 수 있나
+    const dHome=Math.hypot(b.home[0]-b.x,b.home[1]-b.y);
+    for (const o of G.players){ if (o===b||!o.alive) continue;
+      for (let k=0;k<b.path.length;k+=4) if (Math.hypot(o.x-b.path[k][0],o.y-b.path[k][1])<dHome+3){ danger=true; break; }
+      if (danger) break; }
+    const phase = danger||b.d>=2*b.L1+b.L2 ? 3 : b.d<b.L1 ? 0 : b.d<b.L1+b.L2 ? 1 : 2;
+    if (phase===3){
+      if (own[cellAt(b.home[0],b.home[1])]!==b.id){ const h=scan(b,14,i=>own[i]===b.id); if (h) b.home=h; }
+      b.want=to(b.home[0],b.home[1]); b.a0=null;
+    } else {
+      b.want=b.a0+b.s*phase*Math.PI/2;
+      if (!clearAhead(b,b.want,2.5)) b.d=[b.L1,b.L1+b.L2,2*b.L1+b.L2][phase];   // 앞이 육지면 다음 변으로
+    }
   }
-  if (b.blocked){ b.a0+=b.s*Math.PI/2; b.want=b.a0; }
-  const h=G.players[0];
-  if (b.hunter&&h.alive) for (let k=0;k<h.trail.length;k+=2){
-    const tx=h.trail[k]%N+.5, ty=(h.trail[k]/N|0)+.5;
-    if (Math.hypot(tx-b.x,ty-b.y)<6){ b.want=Math.atan2(ty-b.y,tx-b.x); break; }
+  if (b.hunter&&(!out||b.trail.length<30)){
+    const t=scan(b,5.5,i=>trail[i]>=0&&trail[i]!==b.id);
+    if (t) b.want=to(t[0],t[1]);
   }
 }
 
@@ -277,7 +335,7 @@ function startRound(i){
   G.sea=i; G.best=0; G.t=0; G.coins=0; G.mile=0; G.items=[]; G.itemT=3;
   land=landMask(SEAS[i]); own=new Int8Array(N*N).fill(-1); trail=new Int8Array(N*N).fill(-1);
   seaTotal=land.reduce((a,v)=>a+(v?0:1),0);
-  G.players=CREW.map((c,id)=>({...c,id,kills:0,count:0,alive:false,trail:[],speed:id?8.2:9,hunter:id%2===1}));
+  G.players=CREW.map((c,id)=>({...c,id,kills:0,count:0,alive:false,trail:[],speed:id?8.2:9,hunter:id!==4,bold:.8+id*.12}));
   Object.assign(G.players[0],SHIPS[save.ship],{name:'나'});
   for (const p of G.players) spawn(p);
   $('chart').hidden=true; $('result').hidden=true; $('hud').hidden=false; $('hint').hidden=false;
@@ -311,6 +369,7 @@ function hud(){
   $('purse').innerHTML='<i class="coin"></i>'+G.coins;
   document.querySelectorAll('#goal .tick').forEach((t,k)=>t.classList.toggle('got',k<G.mile));
   const b=['wind','shield'].filter(k=>me[k]>0).map(k=>ITEMS[k].name+' '+Math.ceil(me[k])+'초');
+  if (me.boost>.1) b.push('해안 타기 '+(1+me.boost).toFixed(1)+'배');
   $('buff').hidden=!b.length; $('buff').textContent=b.join(' · ');
   const rank=G.players.filter(p=>p.alive).sort((a,b)=>b.count-a.count);
   const rows=rank.slice(0,3); if (me.alive&&!rows.includes(me)) rows.push(me);
@@ -331,8 +390,8 @@ function drawShip(p,camx,camy){
   const s=cs*.95, x=p.x*cs-camx, y=p.y*cs-camy;
   if (p.shield>0){ ctx.strokeStyle='#E9B63A'; ctx.lineWidth=3; ctx.globalAlpha=.9;
     ctx.beginPath(); ctx.arc(x,y,s*1.5,0,7); ctx.stroke(); ctx.globalAlpha=1; }
-  ctx.save(); ctx.translate(x,y); ctx.rotate(p.ang);
-  if (p.wind>0){ ctx.strokeStyle='rgba(255,255,255,.8)'; ctx.lineWidth=2; ctx.beginPath();
+  ctx.save(); ctx.translate(x,y); ctx.rotate(p.head);
+  if (p.wind>0||p.boost>.2){ ctx.strokeStyle='rgba(255,255,255,.8)'; ctx.lineWidth=2; ctx.beginPath();
     for (const o of [-.5,0,.5]){ ctx.moveTo(-s*1.2,s*o); ctx.lineTo(-s*2.1,s*o); } ctx.stroke(); }
   shipShape(ctx,s,p);
   ctx.restore();
@@ -351,7 +410,7 @@ function drawItems(camx,camy){
   }
 }
 // 그리기: 칸 그대로가 아니라, 칸을 살짝 번지게 한 값에서 경계선을 뽑아 부드러운 곡선으로 그린다
-const TH=.42;
+const TH=.45, BW=[1,2,3,2,1];
 let field=null;
 function fields(x0,y0,x1,y1){
   const K=G.players.length+1;
@@ -359,16 +418,16 @@ function fields(x0,y0,x1,y1){
   for (const f of field) for (let y=y0;y<=y1;y++) f.fill(0,y*N+x0,y*N+x1+1);
   for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
     const n=y*N+x;
-    for (let dy=-1;dy<=1;dy++) for (let dx=-1;dx<=1;dx++){
+    for (let dy=-2;dy<=2;dy++) for (let dx=-2;dx<=2;dx++){
       const xx=x+dx, yy=y+dy;
       let id=K-1;
       if (xx>=0&&yy>=0&&xx<N&&yy<N){ const i=yy*N+xx; id=land[i]?K-1:own[i]; }
-      if (id>=0) field[id][n]+=(dx?1:2)*(dy?1:2)/16;
+      if (id>=0) field[id][n]+=BW[dx+2]*BW[dy+2]/81;
     }
   }
 }
 function contour(f,x0,y0,x1,y1,camx,camy){
-  const P=new Path2D(), X=g=>(g+.5)*cs-camx, Y=g=>(g+.5)*cs-camy;
+  const cp=cs/U, P=new Path2D(), X=g=>(g+.5)*cp-camx, Y=g=>(g+.5)*cp-camy;
   const px=[0,1,1,0], py=[0,0,1,1], v=[0,0,0,0];
   for (let y=y0;y<y1;y++){
     let run=-1;
@@ -378,7 +437,7 @@ function contour(f,x0,y0,x1,y1,camx,camy){
         v[0]=f[n]; v[1]=f[n+1]; v[2]=f[n+N+1]; v[3]=f[n+N];
         const k=(v[0]>=TH)+(v[1]>=TH)+(v[2]>=TH)+(v[3]>=TH);
         if (k===4){ if (run<0) run=x; continue; }
-        if (run>=0){ P.rect(X(run),Y(y),(x-run)*cs,cs+.5); run=-1; }
+        if (run>=0){ P.rect(X(run),Y(y),(x-run)*cp,cp+.5); run=-1; }
         if (!k) continue;
         let first=true;
         for (let i=0;i<4;i++){ const j=(i+1)&3;
@@ -388,17 +447,17 @@ function contour(f,x0,y0,x1,y1,camx,camy){
             first?P.moveTo(qx,qy):P.lineTo(qx,qy); first=false; }
         }
         P.closePath();
-      } else if (run>=0) P.rect(X(run),Y(y),(x-run)*cs,cs+.5);
+      } else if (run>=0) P.rect(X(run),Y(y),(x-run)*cp,cp+.5);
     }
   }
   return P;
 }
 const shade=(hex,k)=>'#'+[1,3,5].map(i=>Math.round(parseInt(hex.slice(i,i+2),16)*k).toString(16).padStart(2,'0')).join('');
 function draw(){
-  const me=G.players[0], camx=me.x*cs-W/2, camy=me.y*cs-H/2, K=G.players.length+1;
+  const me=G.players[0], camx=me.x*cs-W/2, camy=me.y*cs-H/2, K=G.players.length+1, cp=cs/U;
   ctx.fillStyle='#1C5D73'; ctx.fillRect(0,0,W,H);
-  const x0=Math.max(0,Math.floor(camx/cs)-2), y0=Math.max(0,Math.floor(camy/cs)-2);
-  const x1=Math.min(N-1,Math.ceil((camx+W)/cs)+1), y1=Math.min(N-1,Math.ceil((camy+H)/cs)+1);
+  const x0=Math.max(0,Math.floor(camx/cp)-3), y0=Math.max(0,Math.floor(camy/cp)-3);
+  const x1=Math.min(N-1,Math.ceil((camx+W)/cp)+2), y1=Math.min(N-1,Math.ceil((camy+H)/cp)+2);
   fields(x0,y0,x1,y1);
   for (const p of G.players){
     if (!p.alive) continue;
@@ -406,19 +465,19 @@ function draw(){
     ctx.save(); ctx.translate(0,cs*.2); ctx.fillStyle=p.dark||(p.dark=shade(p.color,.6)); ctx.fill(P); ctx.restore();
     ctx.fillStyle=p.color; ctx.fill(P);
   }
-  ctx.lineCap=ctx.lineJoin='round'; ctx.lineWidth=cs*.5; ctx.globalAlpha=.7;
+  // 물길: 배가 실제로 지나간 길을 따라 굵은 띠로 그린다
+  ctx.lineCap=ctx.lineJoin='round'; ctx.lineWidth=cs*.8; ctx.globalAlpha=.7;
   for (const p of G.players){
-    if (!p.alive||!p.trail.length) continue;
-    const pts=p.trail.map(c=>[(c%N+.5)*cs-camx,((c/N|0)+.5)*cs-camy]); pts.push([p.x*cs-camx,p.y*cs-camy]);
-    ctx.strokeStyle=p.color; ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
-    for (let i=1;i<pts.length-1;i++) ctx.quadraticCurveTo(pts[i][0],pts[i][1],(pts[i][0]+pts[i+1][0])/2,(pts[i][1]+pts[i+1][1])/2);
-    ctx.lineTo(pts[pts.length-1][0],pts[pts.length-1][1]); ctx.stroke();
+    if (!p.alive||!p.path.length) continue;
+    ctx.strokeStyle=p.color; ctx.beginPath(); ctx.moveTo(p.path[0][0]*cs-camx,p.path[0][1]*cs-camy);
+    for (const q of p.path) ctx.lineTo(q[0]*cs-camx,q[1]*cs-camy);
+    ctx.lineTo(p.x*cs-camx,p.y*cs-camy); ctx.stroke();
   }
   ctx.globalAlpha=1;
   const L=contour(field[K-1],x0,y0,x1,y1,camx,camy);
   ctx.strokeStyle='rgba(243,233,200,.5)'; ctx.lineWidth=cs*.45; ctx.stroke(L);
   ctx.fillStyle='#D9C48F'; ctx.fill(L);
-  const gx0=.5*cs-camx, gy0=.5*cs-camy, gx1=(N-.5)*cs-camx, gy1=(N-.5)*cs-camy;
+  const gx0=.5*cp-camx, gy0=.5*cp-camy, gx1=(N-.5)*cp-camx, gy1=(N-.5)*cp-camy;
   ctx.fillRect(0,0,W,gy0+1); ctx.fillRect(0,gy1-1,W,H); ctx.fillRect(0,0,gx0+1,H); ctx.fillRect(gx1-1,0,W,H);
   drawItems(camx,camy);
   for (const p of G.players) if (p.alive&&p.id) drawShip(p,camx,camy);
@@ -441,8 +500,8 @@ function frame(t){
       const share=G.players[0].count/seaTotal; if (share>G.best) G.best=share;
       while (G.mile<4&&share>=(G.mile+1)*GOAL/5){ G.mile++; G.coins+=10; }
       if ((G.itemT-=dt)<0&&G.items.length<4){ G.itemT=6;
-        for (let t=0;t<40;t++){ const x=2+Math.random()*(N-4)|0, y=2+Math.random()*(N-4)|0;
-          if (!land[y*N+x]){ G.items.push({x:x+.5,y:y+.5,type:Math.random()<.5?'wind':'shield'}); break; } } }
+        for (let t=0;t<40;t++){ const x=2+Math.random()*(WU-4), y=2+Math.random()*(WU-4);
+          if (!isLand(x,y)){ G.items.push({x,y,type:Math.random()<.5?'wind':'shield'}); break; } } }
       if ((hudT+=dt)>.2){ hudT=0; hud(); }
       if (share>=GOAL) endRound(true);
     }
