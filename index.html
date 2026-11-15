@@ -44,9 +44,12 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #kills{position:absolute;left:12px;top:calc(max(12px,env(safe-area-inset-top)) + 36px);
   background:rgba(18,30,45,.7);border-radius:10px;padding:4px 10px;font-weight:700}
 #board{position:absolute;right:12px;top:calc(max(12px,env(safe-area-inset-top)) + 36px);list-style:none;padding:0;
-  font-size:13px;font-weight:700;min-width:132px}
-#board li{display:flex;justify-content:space-between;gap:10px;padding:3px 8px;margin-bottom:3px;border-radius:8px;
-  background:rgba(18,30,45,.7);border-left:6px solid var(--c)}
+  font-size:13px;font-weight:700;width:156px;margin:0}
+#board li{position:absolute;right:0;width:100%;height:24px;box-sizing:border-box;display:flex;align-items:center;
+  justify-content:space-between;gap:8px;padding:0 8px;border-radius:8px;overflow:hidden;white-space:nowrap;
+  background:rgba(18,30,45,.7);border-left:6px solid var(--c);transition:transform .35s ease,opacity .25s}
+#board li::before{content:'';position:absolute;left:0;top:0;bottom:0;width:var(--w,0%);background:var(--c);opacity:.3;transition:width .3s}
+#board li span{position:relative}
 #board li.me{background:rgba(230,211,163,.92);color:var(--ink)}
 #mini{position:absolute;inset:auto;left:12px;bottom:max(12px,env(safe-area-inset-bottom));width:112px;height:112px;
   border:2px solid var(--paper);border-radius:10px;background:rgba(18,30,45,.7)}
@@ -146,18 +149,18 @@ const SEAS = [
 ];
 const CREW = [
   {name:'나', color:'#C8323B'},
-  {name:'외눈 메리', color:'#E0A82E'},
-  {name:'은갈고리 한', color:'#7D5BA6'},
-  {name:'검은돛 도로', color:'#2FA37A'},
-  {name:'폭풍의 진', color:'#E07A2E'},
-  {name:'앵무 선장', color:'#E6DFCF'},
+  {name:'외눈 메리', color:'#E0A82E', pat:'dots'},
+  {name:'은갈고리 한', color:'#7D5BA6', pat:'scales'},
+  {name:'검은돛 도로', color:'#2FA37A', pat:'stripes'},
+  {name:'폭풍의 진', color:'#E07A2E', pat:'zigzag'},
+  {name:'앵무 선장', color:'#E6DFCF', pat:'diamonds'},
 ];
 // 내가 고를 수 있는 해적선(겉모습만 다르고 성능은 같다)
 const SHIPS = [
-  {name:'슬루프 "붉은 돛"', desc:'작고 날랜 첫 배.', price:0, color:'#C8323B', sail:'#F3E9D2', hull:'#3B2414'},
-  {name:'브리건틴 "푸른 밤"', desc:'돛대가 둘인 푸른 배.', price:100, color:'#4F7BE8', sail:'#DCE6FF', hull:'#22304F', masts:2},
-  {name:'갤리온 "먹빛 돛"', desc:'검은 돛을 단 큰 배.', price:300, color:'#34323C', sail:'#17161B', hull:'#1E1410', masts:3},
-  {name:'유령선 "새벽 안개"', desc:'안개처럼 빛나는 배.', price:600, color:'#9FE8D8', sail:'#E9FFF9', hull:'#4C6F6A', masts:3},
+  {name:'슬루프 "붉은 돛"', desc:'작고 날랜 첫 배.', price:0, color:'#C8323B', sail:'#F3E9D2', hull:'#3B2414', pat:'waves'},
+  {name:'브리건틴 "푸른 밤"', desc:'돛대가 둘인 푸른 배.', price:100, color:'#4F7BE8', sail:'#DCE6FF', hull:'#22304F', masts:2, pat:'stars'},
+  {name:'갤리온 "먹빛 돛"', desc:'검은 돛을 단 큰 배.', price:300, color:'#34323C', sail:'#17161B', hull:'#1E1410', masts:3, pat:'cross'},
+  {name:'유령선 "새벽 안개"', desc:'안개처럼 빛나는 배.', price:600, color:'#9FE8D8', sail:'#E9FFF9', hull:'#4C6F6A', masts:3, pat:'fog'},
 ];
 const ITEMS = {wind:{name:'순풍', sec:4}, shield:{name:'방어막', sec:7}};
 const $ = id => document.getElementById(id);
@@ -410,7 +413,7 @@ function think(b,dt){
 }
 
 function startRound(i){
-  G.sea=i; G.best=0; G.t=0; G.coins=0; G.mile=0; G.items=[]; G.itemT=3; G.fx=[]; G.pop=[];
+  G.sea=i; G.best=0; G.t=0; G.coins=0; G.mile=0; G.items=[]; G.itemT=3; G.fx=[]; G.pop=[]; G.wasTop=false;
   land=landMask(SEAS[i]); buildLandF(); own=new Int8Array(N*N).fill(-1); trail=new Int8Array(N*N).fill(-1);
   seaTotal=land.reduce((a,v)=>a+(v?0:1),0);
   G.players=CREW.map((c,id)=>({...c,id,kills:0,count:0,alive:false,trail:[],speed:id?8.2:9,hunter:id!==4,bold:.8+id*.12}));
@@ -468,7 +471,20 @@ function hud(){
   $('buff').hidden=!b.length; $('buff').textContent=b.join(' · ');
   const rank=G.players.filter(p=>p.alive).sort((a,b)=>b.count-a.count);
   const rows=rank.slice(0,3); if (me.alive&&!rows.includes(me)) rows.push(me);
-  $('board').innerHTML=rows.map(p=>`<li class="${p.id?'':'me'}" style="--c:${p.color}"><span>${rank.indexOf(p)+1}. ${p.name}</span><span>${(p.count/seaTotal*100).toFixed(1)}%</span></li>`).join('');
+  // 순위표: 배마다 줄을 하나씩 두고 자리만 옮겨서, 순위가 바뀌면 줄이 미끄러지듯 움직인다. 막대는 1등 대비 영토 크기
+  const bd=$('board'), lead=rank[0];
+  if (bd._for!==G.players){ bd._for=G.players;
+    bd.innerHTML=G.players.map(p=>`<li class="${p.id?'':'me'}" style="--c:${p.color};opacity:0"><span></span><span></span></li>`).join(''); }
+  G.players.forEach((p,i)=>{ const li=bd.children[i], k=rows.indexOf(p);
+    li.style.opacity=k<0?0:1; if (k<0) return;
+    const sh=p.count/seaTotal;
+    li.style.transform=`translateY(${k*27+(k===3?6:0)}px)`;
+    li.style.setProperty('--w',(lead.count?p.count/lead.count*100:0)+'%');
+    li.children[0].textContent=(p===lead?'👑 ':rank.indexOf(p)+1+'. ')+p.name;
+    li.children[1].textContent=(sh*100).toFixed(1)+'%'; });
+  const top=me.alive&&lead===me&&(!rank[1]||me.count>rank[1].count);
+  if (top&&!G.wasTop&&G.state==='play') popText(me.x,me.y-1.5,'1위!','#E9B63A');
+  G.wasTop=top;
 }
 
 function shipShape(c,s,p){
@@ -547,6 +563,29 @@ function contour(f,x0,y0,x1,y1,camx,camy){
   }
   return P;
 }
+// 영토 무늬: 배마다 고유한 무늬를 영토 색 위에 옅게 겹친다. 무늬 한 칸(t×t)을 이어 붙이므로 칸 경계에 걸리는 모양은 9번 겹쳐 그린다
+const PATN={waves:'물결', stars:'별', cross:'엇갈린 칼', fog:'안개', dots:'금화', scales:'비늘', stripes:'빗금', zigzag:'번갯길', diamonds:'마름모'};
+const MOTIF={
+  waves:(c,t)=>{ for (const [x,y] of [[.25,.35],[.75,.85]]){ c.beginPath(); c.arc(x*t,y*t,t*.2,Math.PI*1.15,Math.PI*1.85); c.stroke(); } },
+  stars:(c,t)=>{ for (const [x,y,r] of [[.25,.3,.13],[.72,.75,.09]]){ c.beginPath();
+    for (let k=0;k<8;k++){ const a=k*Math.PI/4, q=k%2?r*.35:r; c.lineTo((x+Math.cos(a)*q)*t,(y+Math.sin(a)*q)*t); } c.fill(); } },
+  cross:(c,t)=>{ for (const [x,y] of [[.25,.25],[.75,.75]]){ const r=.11*t; c.beginPath(); c.moveTo(x*t-r,y*t-r); c.lineTo(x*t+r,y*t+r); c.moveTo(x*t+r,y*t-r); c.lineTo(x*t-r,y*t+r); c.stroke(); } },
+  fog:(c,t)=>{ for (const [x,y,r] of [[.3,.3,.18],[.8,.78,.12]]){ c.beginPath(); c.arc(x*t,y*t,r*t,0,Math.PI*1.5); c.stroke(); } },
+  dots:(c,t)=>{ for (const [x,y] of [[.25,.25],[.75,.75]]){ c.beginPath(); c.arc(x*t,y*t,t*.08,0,7); c.fill(); } },
+  scales:(c,t)=>{ for (const [x,y] of [[0,.5],[.5,.5],[.25,1],[.75,1]]){ c.beginPath(); c.arc(x*t,y*t-t*.25,t*.25,0,Math.PI); c.stroke(); } },
+  zigzag:(c,t)=>{ c.beginPath(); [[0,.4],[.25,.6],[.5,.4],[.75,.6],[1,.4]].forEach(([x,y])=>c.lineTo(x*t,y*t)); c.stroke(); },
+  diamonds:(c,t)=>{ c.beginPath(); c.moveTo(.5*t,.36*t); c.lineTo(.62*t,.5*t); c.lineTo(.5*t,.64*t); c.lineTo(.38*t,.5*t); c.fill(); },
+};
+const patCache={};
+function territoryPattern(target,pat,color,t){
+  const key=(target===ctx?'g':'s')+pat+color+t; if (patCache[key]) return patCache[key];
+  const tile=document.createElement('canvas'); tile.width=tile.height=t; const c=tile.getContext('2d');
+  const n=parseInt(color.slice(1),16), lum=(.299*(n>>16)+.587*(n>>8&255)+.114*(n&255))/255;
+  c.strokeStyle=c.fillStyle=lum>.6?'rgba(60,40,20,.16)':'rgba(255,255,255,.2)'; c.lineWidth=Math.max(1.5,t*.07); c.lineCap='round';
+  if (pat==='stripes'){ c.beginPath(); for (const o of [-t,0,t]){ c.moveTo(o,t); c.lineTo(o+t,0); } c.stroke(); }
+  else for (const dx of [-t,0,t]) for (const dy of [-t,0,t]){ c.save(); c.translate(dx,dy); MOTIF[pat](c,t); c.restore(); }
+  return patCache[key]=target.createPattern(tile,'repeat');
+}
 const shade=(hex,k)=>'#'+[1,3,5].map(i=>Math.round(parseInt(hex.slice(i,i+2),16)*k).toString(16).padStart(2,'0')).join('');
 function draw(){
   const me=G.players[0], camx=me.x*cs-W/2, camy=me.y*cs-H/2, K=G.players.length+1, cp=cs/U;
@@ -559,6 +598,7 @@ function draw(){
     const P=contour(field[p.id],x0,y0,x1,y1,camx,camy);
     ctx.save(); ctx.translate(0,cs*.2); ctx.fillStyle=p.dark||(p.dark=shade(p.color,.6)); ctx.fill(P); ctx.restore();
     ctx.fillStyle=p.color; ctx.fill(P);
+    if (p.pat){ const pt=territoryPattern(ctx,p.pat,p.color,Math.round(cs*2.4)); pt.setTransform(new DOMMatrix([1,0,0,1,-camx,-camy])); ctx.fillStyle=pt; ctx.fill(P); }
   }
   // 물길: 배가 실제로 지나간 길을 따라 굵은 띠로 그린다
   ctx.lineCap=ctx.lineJoin='round'; ctx.lineWidth=cs*.8; ctx.globalAlpha=.7;
@@ -631,13 +671,14 @@ function showDock(){
   $('dock').hidden=false; $('haveDock').innerHTML=coinText();
   $('ships').innerHTML=SHIPS.map((sh,i)=>{
     const own=save.ships.includes(i), on=save.ship===i;
-    return `<div class="ship"><canvas width="192" height="144"></canvas><h3>${sh.name}</h3><p>${sh.desc}</p>
+    return `<div class="ship"><canvas width="192" height="144"></canvas><h3>${sh.name}</h3><p>${sh.desc} 영토 무늬: ${PATN[sh.pat]}</p>
       ${on?'<button disabled>지금 타는 배</button>':own?`<button data-pick="${i}">이 배 타기</button>`
         :`<button class="buy" data-buy="${i}" ${save.coins<sh.price?'disabled':''}>금화 ${sh.price}닢으로 사기</button>`}</div>`;
   }).join('');
   document.querySelectorAll('.ship').forEach((el,i)=>{
     const c=el.querySelector('canvas').getContext('2d');
     c.fillStyle='#1C5D73'; c.fillRect(0,0,192,144); c.fillStyle=SHIPS[i].color; c.beginPath(); c.arc(40,150,90,0,7); c.fill();
+    c.fillStyle=territoryPattern(c,SHIPS[i].pat,SHIPS[i].color,30); c.fill();
     c.translate(104,70); c.rotate(-.5); shipShape(c,44,SHIPS[i]);
   });
 }
