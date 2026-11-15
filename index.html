@@ -301,9 +301,9 @@ function step(p,dt){
   const dist=p.speed*Math.min(2.5,(1+p.boost)*(p.wind>0?1.5:1))*dt, n=Math.ceil(dist*U/.45);
   let hug=false; const ox=p.x, oy=p.y;
   for (let k=0;k<n&&p.alive&&G.state==='play';k++) if (move(p,dist/n)) hug=true;
-  // 해안 타기: 해안에 붙어 나아가는 동안 조금씩 빨라져 최대 2배. 떨어지거나 구석에 막히면 금방 원래 속도로
+  // 해안 타기: 해안에 붙어 나아가는 동안 점점 빨라져 3초 뒤 2배. 떨어지거나 구석에 막히면 금방 원래 속도로
   if (hug&&Math.hypot(p.x-ox,p.y-oy)>dist*.5) p.hugT=.3; else p.hugT-=dt;
-  p.boost = p.hugT>0 ? Math.min(1,p.boost+dt*.45) : Math.max(0,p.boost-dt*1.5);
+  p.boost = p.hugT>0 ? Math.min(1,p.boost+dt/3) : Math.max(0,p.boost-dt*1.5);
   p.blocked=hug;
 }
 function move(p,d){
@@ -319,7 +319,7 @@ function move(p,d){
     if (p.hugT<=0||!sameStick){             // 처음 닿았거나 조이스틱을 돌렸을 때만 타는 방향을 고른다
       if (Math.abs(dot)>=.08) p.side=dot>0?1:-1;
       p.sideWant=p.want;
-    } else if (dot*p.side<-.5){ p.stuck=true; return false; }   // 해안이 굽어 거꾸로 가게 되면 멈춘다
+    } else if (dot*p.side<-.94){ p.stuck=true; return false; }   // 해안이 크게 굽어 거의 정반대(약 160° 이상)로 가게 될 때만 멈춘다
     tx*=p.side; ty*=p.side;
     const sp=d;
     let nx=p.x+tx*sp, ny=p.y+ty*sp;
