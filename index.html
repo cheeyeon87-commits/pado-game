@@ -112,7 +112,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
   <div id="purse"></div>
   <div id="buff" hidden></div>
   <ol id="board"></ol>
-  <canvas id="mini" width="112" height="112"></canvas>
+  <canvas id="mini" width="224" height="224"></canvas>
   <div id="hint">화면 아무 곳이나 누르면 조이스틱이 생겨요. 가고 싶은 쪽으로 밀어요.<br>내 바다 밖으로 나갔다가 돌아오면, 물길로 둘러싼 곳이 내 바다가 돼요.<br>해안에 붙어서 가면 점점 빨라져요.</div>
 </div>
 
@@ -244,7 +244,7 @@ function setWaves(){
   } else if (!save.set.bgm&&waves){ waves.src.stop(); waves.lfo.stop(); waves=null; }
 }
 
-const G = {state:'chart', sea:0, players:[], best:0, fx:[], pop:[]};
+const G = {state:'chart', sea:0, players:[], best:0, fx:[], pop:[], islands:[]};
 // 효과: 반짝이는 알갱이(fx)와 떠오르는 글자(pop). 위치는 바다 단위 좌표
 function burst(x,y,color,n,sp){
   for (let i=0;i<n;i++){ const a=Math.random()*6.283, v=sp*(.4+Math.random()), life=.5+Math.random()*.5;
@@ -319,6 +319,57 @@ function spawn(p){
 function recount(){
   for (const p of G.players) p.count=0;
   for (let i=0;i<N*N;i++) if (own[i]>=0) G.players[own[i]].count++;
+  let lead=null; for (const p of G.players) if (p.alive&&(!lead||p.count>lead.count)) lead=p;
+  G.lead=lead; updateIslands();
+}
+// 섬 점령: 바다 한가운데 떠 있는 섬(지도 가장자리 땅과 이어지지 않은 육지)의 해안 바다 칸 중 80% 이상을 한 배가 차지하면 그 섬의 능력을 받는다.
+// 다른 배가 80% 이상을 차지하면 넘어가고, 뺏기면 능력이 사라진다. 1위는 능력이 절반 세기로 켜져서 뒤처진 배가 따라잡을 여지가 생긴다
+const ISL_NEED=.8;
+const ISL_KINDS=[
+  {key:'wind',  name:'순풍 항구', icon:'💨', desc:'배가 빨라져요'},
+  {key:'yard',  name:'조선소 섬', icon:'🛡️', desc:'방어막이 저절로 생겨요'},
+  {key:'gold',  name:'보물섬',   icon:'💰', desc:'금화가 계속 들어와요'},
+  {key:'coast', name:'해안 항로', icon:'🌊', desc:'해안 타기 가속이 빨라져요'},
+];
+function buildIslands(){
+  const seen=new Uint8Array(N*N), q=[];
+  const nb=i=>{ const x=i%N, r=[]; if (x>0) r.push(i-1); if (x<N-1) r.push(i+1); if (i>=N) r.push(i-N); if (i<N*(N-1)) r.push(i+N); return r; };
+  for (let k=0;k<N;k++) for (const i of [k,(N-1)*N+k,k*N,k*N+N-1]) if (land[i]&&!seen[i]){ seen[i]=1; q.push(i); }
+  while (q.length){ const i=q.pop(); for (const j of nb(i)) if (land[j]&&!seen[j]){ seen[j]=1; q.push(j); } }   // 가장자리 땅과 이어진 육지
+  const out=[];
+  for (let s=0;s<N*N;s++){
+    if (!land[s]||seen[s]) continue;
+    const cells=[s]; seen[s]=1;
+    for (let k=0;k<cells.length;k++) for (const j of nb(cells[k])) if (land[j]&&!seen[j]){ seen[j]=1; cells.push(j); }
+    const shore=new Set(); for (const i of cells) for (const j of nb(i)) if (!land[j]) shore.add(j);
+    if (cells.length<6||shore.size<8) continue;
+    let sx=0, sy=0; for (const i of cells){ sx+=i%N; sy+=i/N|0; }
+    out.push({kind:ISL_KINDS[out.length%ISL_KINDS.length], cells, shore:[...shore], x:(sx/cells.length+.5)/U, y:(sy/cells.length+.5)/U, owner:-1, share:[]});
+  }
+  G.islands=out;
+}
+function updateIslands(){
+  if (!G.islands) return;
+  for (const is of G.islands){
+    const cnt=new Array(G.players.length).fill(0);
+    for (const i of is.shore){ const o=own[i]; if (o>=0&&o<cnt.length) cnt[o]++; }
+    is.share=cnt.map(c=>c/is.shore.length);
+    let owner=-1; for (let k=0;k<cnt.length;k++) if (is.share[k]>=ISL_NEED) owner=k;
+    if (owner===is.owner) continue;
+    const prev=is.owner; is.owner=owner;
+    if (G.state!=='play') continue;
+    if (owner===0){ popText(is.x,is.y-1.6,is.kind.name+' 점령! '+is.kind.desc,'#E9B63A'); burst(is.x,is.y,'#E9B63A',24,6); sfx('item'); buzz(30); }
+    else if (prev===0) popText(is.x,is.y-1.6,is.kind.name+' 빼앗김','#FF9C8F');
+  }
+  for (const p of G.players) p.isl=[];
+  for (const is of G.islands) if (is.owner>=0&&G.players[is.owner]) G.players[is.owner].isl.push(is.kind.key);
+}
+// 능력 세기: 갖고 있지 않으면 0, 갖고 있으면 1, 1위이면 절반(.5)
+function ab(p,key){ return p.isl&&p.isl.includes(key)?(G.lead===p?.5:1):0; }
+function islandTick(p,dt){
+  const y=ab(p,'yard'), g=ab(p,'gold');
+  if (y){ if ((p.yardT=(p.yardT??20)-dt)<=0){ p.yardT=20/y; if (p.shield<5) p.shield=5; } } else p.yardT=20;   // 조선소 섬: 20초마다 방어막(1위는 40초)
+  if (g){ if ((p.goldT=(p.goldT??3)-dt)<=0){ p.goldT=3/g; if (p.id===0) G.coins++; } } else p.goldT=3;            // 보물섬: 3초마다 금화 1닢(1위는 6초)
 }
 function kill(p, by){
   if (!p.alive) return;
@@ -384,12 +435,13 @@ const norm = a => Math.atan2(Math.sin(a),Math.cos(a));
 function step(p,dt){
   const turn=(p.id?7:14)*dt; p.ang += Math.max(-turn,Math.min(turn,norm(p.want-p.ang)));
   if (p.wind>0) p.wind-=dt; if (p.shield>0) p.shield-=dt;
-  const dist=p.speed*Math.min(2.5,(1+p.boost)*(p.wind>0?1.5:1))*dt, n=Math.ceil(dist*U/.45);
+  if (p.grace>0) p.grace-=dt; for (const o of G.players) if (o!==p&&o.alive&&Math.hypot(o.x-p.x,o.y-p.y)<2.6) p.grace=.9;
+  const dist=p.speed*Math.min(2.5,(1+p.boost)*(p.wind>0?1.5:1))*(1+.2*ab(p,'wind'))*dt, n=Math.ceil(dist*U/.45);
   let hug=false; const ox=p.x, oy=p.y;
   for (let k=0;k<n&&p.alive&&G.state==='play';k++) if (move(p,dist/n)) hug=true;
   // 해안 타기: 해안에 붙어 나아가는 동안 점점 빨라져 3초 뒤 2배. 떨어지거나 구석에 막히면 금방 원래 속도로
   if (hug&&Math.hypot(p.x-ox,p.y-oy)>dist*.5) p.hugT=.3; else p.hugT-=dt;
-  p.boost = p.hugT>0 ? Math.min(1,p.boost+dt/3) : Math.max(0,p.boost-dt*1.5);
+  p.boost = p.hugT>0 ? Math.min(1,p.boost+dt/3*(1+ab(p,'coast'))) : Math.max(0,p.boost-dt*1.5);
   p.blocked=hug;
 }
 function move(p,d){
@@ -428,7 +480,7 @@ function move(p,d){
   if (c!==p.cell){
     p.cell=c;
     const t=trail[c];
-    if (t>=0&&t!==p.id){
+    if (t>=0&&t!==p.id&&!(p.grace>0)){   // 배끼리 닿는 건 괜찮고(닿은 뒤 잠깐은 물길도 안 끊김), 물길 중간을 먼저 끊는 쪽이 이긴다
       const o=G.players[t];
       if (o.shield>0) o.shield=0;            // 방어막이 물길을 한 번 지켜 준다
       else kill(o,p);
@@ -468,9 +520,13 @@ function think(b,dt){
       for (let k=0;k<12;k++){ const a=k*.5236, x=b.x+Math.cos(a)*(rad+4), y=b.y+Math.sin(a)*(rad+4);
         if (!isLand(x,y)&&own[cellAt(x,y)]!==b.id&&clearAhead(b,a,3)) cand.push(a); }
       b.a0=cand.length?cand[Math.random()*cand.length|0]:Math.random()*6.28;
+      let tg=null, td=1e9;                    // 아직 내 것이 아닌 가까운 섬이 있으면 그쪽으로 나가 섬을 감싼다(섬 점령)
+      for (const is of G.islands||[]){ if (is.owner===b.id) continue; const d=Math.hypot(is.x-b.x,is.y-b.y); if (d<22&&d<td){ td=d; tg=is; } }
+      if (tg&&Math.random()<.6){ b.a0=to(tg.x,tg.y); b.isleT=tg; }
       b.s=Math.random()<.5?1:-1;
       const size=Math.min(15,(3+rad*.9)*b.bold);
       b.L1=size*(.7+Math.random()*.6); b.L2=size*(.7+Math.random()*.6);
+      if (b.isleT&&b.a0===to(b.isleT.x,b.isleT.y)){ let r=0; for (const i of b.isleT.shore) r=Math.max(r,Math.hypot((i%N+.5)/U-b.isleT.x,((i/N|0)+.5)/U-b.isleT.y)); b.L1=Math.min(18,td+r+1.5); b.L2=Math.min(18,2*r+3); b.isleT=null; }
     }
     b.want=b.a0;
   } else {
@@ -515,9 +571,9 @@ function tutorial(dt){
 }
 function startRound(i){
   G.sea=i; G.best=0; G.t=0; G.coins=0; G.mile=0; G.items=[]; G.itemT=3; G.fx=[]; G.pop=[]; G.wasTop=false;
-  land=landMask(SEAS[i]); buildLandF(); own=new Int8Array(N*N).fill(-1); trail=new Int8Array(N*N).fill(-1);
+  land=landMask(SEAS[i]); buildLandF(); buildIslands(); own=new Int8Array(N*N).fill(-1); trail=new Int8Array(N*N).fill(-1);
   seaTotal=land.reduce((a,v)=>a+(v?0:1),0);
-  G.players=CREW.map((c,id)=>({...c,id,kills:0,count:0,alive:false,trail:[],speed:id?8.2:9,hunter:id!==4,bold:.8+id*.12}));
+  G.players=CREW.map((c,id)=>({...c,id,kills:0,count:0,alive:false,trail:[],speed:id?5.7:6.3,hunter:id!==4,bold:.8+id*.12}));
   Object.assign(G.players[0],SHIPS[save.ship],{name:'나'});
   for (const p of G.players) spawn(p);
   // 처음 하는 사람: 안내를 한 단계씩 보여 주고, 그 판에는 컴퓨터 배가 사냥하지 않는다
@@ -548,20 +604,24 @@ function endRound(won){
 $('rBack').onclick=showChart;
 
 // 미니맵: 바다 전체를 작게 그려 내 영토·상대 영토·배 위치를 한눈에 보여 준다
-const MS=112, mctx=$('mini').getContext('2d'), mimg=mctx.createImageData(MS,MS), m32=new Uint32Array(mimg.data.buffer);
+const MS=224, mctx=$('mini').getContext('2d'), mo=document.createElement('canvas'); mo.width=mo.height=N;
+const moc=mo.getContext('2d'), mimg=moc.createImageData(N,N), m32=new Uint32Array(mimg.data.buffer);
 const abgr=hex=>{ const n=parseInt(hex.slice(1),16); return 0xFF000000|((n&255)<<16)|(n&0xFF00)|(n>>16); };
 const MSEA=abgr('#1C5D73'), MLAND=abgr('#D9C48F');
-function drawMini(){
+function drawMini(){                                // 칸 하나가 점 하나인 그림을 만든 뒤 부드럽게 늘려 그린다(도트 느낌 줄이기)
   const col=G.players.map(p=>abgr(p.color));
-  for (let my=0;my<MS;my++){ const row=((my+.5)*N/MS|0)*N;
-    for (let mx=0;mx<MS;mx++){ const i=row+((mx+.5)*N/MS|0);
-      m32[my*MS+mx]=land[i]?MLAND:own[i]>=0?col[own[i]]:MSEA; } }
-  mctx.putImageData(mimg,0,0);
+  for (let i=0;i<N*N;i++) m32[i]=land[i]?MLAND:own[i]>=0?col[own[i]]:MSEA;
+  moc.putImageData(mimg,0,0);
+  mctx.imageSmoothingEnabled=true; mctx.imageSmoothingQuality='high';
+  mctx.clearRect(0,0,MS,MS); mctx.drawImage(mo,0,0,MS,MS);
+  for (const is of G.islands){                      // 섬: 점령한 배 색(없으면 하양)의 작은 점
+    mctx.beginPath(); mctx.arc(is.x/WU*MS,is.y/WU*MS,5,0,7);
+    mctx.fillStyle=is.owner>=0?G.players[is.owner].color:'#FFF8DC'; mctx.fill(); mctx.lineWidth=1.5; mctx.strokeStyle='#22303F'; mctx.stroke(); }
   for (const p of G.players){ if (!p.alive) continue;
     const x=p.x/WU*MS, y=p.y/WU*MS, me=p.id===0;
-    mctx.beginPath(); mctx.arc(x,y,me?4.5:2.5,0,7);
+    mctx.beginPath(); mctx.arc(x,y,me?7:4.5,0,7);
     mctx.fillStyle=me?'#fff':p.color; mctx.fill();
-    mctx.lineWidth=me?2:1; mctx.strokeStyle=me?'#22303F':'#fff'; mctx.stroke(); }
+    mctx.lineWidth=me?3:1.5; mctx.strokeStyle=me?'#22303F':'#fff'; mctx.stroke(); }
 }
 function hud(){
   drawMini();
@@ -573,6 +633,7 @@ function hud(){
   document.querySelectorAll('#goal .tick').forEach((t,k)=>t.classList.toggle('got',k<G.mile));
   const b=['wind','shield'].filter(k=>me[k]>0).map(k=>ITEMS[k].name+' '+Math.ceil(me[k])+'초');
   if (me.boost>.1) b.push('해안 타기 '+(1+me.boost).toFixed(1)+'배');
+  for (const is of G.islands) if (is.owner===0) b.push(is.kind.icon+' '+is.kind.name+(G.lead===me?'(1위라 절반)':''));
   $('buff').hidden=!b.length; $('buff').textContent=b.join(' · ');
   const rank=G.players.filter(p=>p.alive).sort((a,b)=>b.count-a.count);
   const rows=rank.slice(0,3); if (me.alive&&!rows.includes(me)) rows.push(me);
@@ -697,6 +758,18 @@ function territoryPattern(target,pat,color,t){
   else for (const dx of [-t,0,t]) for (const dy of [-t,0,t]){ c.save(); c.translate(dx,dy); MOTIF[pat](c,t); c.restore(); }
   return patCache[key]=target.createPattern(tile,'repeat');
 }
+// 섬 표시: 섬 위의 둥근 표지에 능력 그림, 둘레 고리는 가장 많이 차지한 배 색으로 차올라 80%가 되면 한 바퀴
+function drawIslands(camx,camy){
+  for (const is of G.islands){
+    const x=is.x*cs-camx, y=is.y*cs-camy; if (x<-60||y<-60||x>W+60||y>H+60) continue;
+    const r=cs*.95, held=is.owner>=0;
+    let bi=-1, bs=0; is.share.forEach((s,k)=>{ if (s>bs){ bs=s; bi=k; } });
+    ctx.lineWidth=cs*.28; ctx.strokeStyle='rgba(18,30,45,.55)'; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.stroke();
+    if (bi>=0&&bs>.01){ ctx.strokeStyle=G.players[bi].color; ctx.beginPath(); ctx.arc(x,y,r,-Math.PI/2,-Math.PI/2+Math.min(1,bs/ISL_NEED)*Math.PI*2); ctx.stroke(); }
+    ctx.fillStyle=held?'rgba(255,248,220,.97)':'rgba(255,248,220,.78)'; ctx.beginPath(); ctx.arc(x,y,r*.78,0,7); ctx.fill();
+    ctx.font=`${cs*1.05}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#000'; ctx.fillText(is.kind.icon,x,y+1);
+  }
+}
 const shade=(hex,k)=>'#'+[1,3,5].map(i=>Math.round(parseInt(hex.slice(i,i+2),16)*k).toString(16).padStart(2,'0')).join('');
 function draw(){
   const me=G.players[0], camx=me.x*cs-W/2, camy=me.y*cs-H/2, K=G.players.length+1, cp=cs/U;
@@ -725,7 +798,7 @@ function draw(){
   ctx.fillStyle='#D9C48F'; ctx.fill(L);
   const gx0=.5*cp-camx, gy0=.5*cp-camy, gx1=(N-.5)*cp-camx, gy1=(N-.5)*cp-camy;
   ctx.fillRect(0,0,W,gy0+1); ctx.fillRect(0,gy1-1,W,H); ctx.fillRect(0,0,gx0+1,H); ctx.fillRect(gx1-1,0,W,H);
-  drawItems(camx,camy);
+  drawItems(camx,camy); drawIslands(camx,camy);
   for (const p of G.players) if (p.alive&&p.id) drawShip(p,camx,camy);
   if (me.alive) drawShip(me,camx,camy);
   drawFx(camx,camy);
@@ -742,6 +815,7 @@ function frame(t){
     for (const p of G.players){
       if (!p.alive){ if (p.id&&(p.respawn-=dt)<0) spawn(p); continue; }
       if (p.id) think(p,dt);
+      islandTick(p,dt);
       step(p,dt);
       if (G.state!=='play') break;
     }
