@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<title>파도 영토</title>
+<title>타이드 클레임</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=East+Sea+Dokdo&family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet">
 <style>
@@ -48,7 +48,9 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #board li{display:flex;justify-content:space-between;gap:10px;padding:3px 8px;margin-bottom:3px;border-radius:8px;
   background:rgba(18,30,45,.7);border-left:6px solid var(--c)}
 #board li.me{background:rgba(230,211,163,.92);color:var(--ink)}
-#hint{position:absolute;left:16px;right:16px;bottom:max(28px,env(safe-area-inset-bottom));text-align:center;
+#mini{position:absolute;inset:auto;left:12px;bottom:max(12px,env(safe-area-inset-bottom));width:112px;height:112px;
+  border:2px solid var(--paper);border-radius:10px;background:rgba(18,30,45,.7)}
+#hint{position:absolute;left:16px;right:16px;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 128px);text-align:center;
   background:rgba(230,211,163,.94);color:var(--ink);border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.5}
 
 #goal .tick{position:absolute;top:0;bottom:0;width:3px;margin-left:-1px;background:rgba(230,211,163,.45)}
@@ -98,12 +100,13 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
   <div id="purse"></div>
   <div id="buff" hidden></div>
   <ol id="board"></ol>
+  <canvas id="mini" width="112" height="112"></canvas>
   <div id="hint">화면 아무 곳이나 누르면 조이스틱이 생겨요. 가고 싶은 쪽으로 밀어요.<br>내 바다 밖으로 나갔다가 돌아오면, 물길로 둘러싼 곳이 내 바다가 돼요.<br>해안에 붙어서 가면 점점 빨라져요.</div>
 </div>
 
 <main id="chart">
   <div id="harbor"><div class="have" id="haveChart"></div><button id="openDock">내 배 고르기</button></div>
-  <h1 class="brush">파도 영토</h1>
+  <h1 class="brush">타이드 클레임</h1>
   <p class="lead">물길로 바다를 둘러싸서 내 것으로 만드세요. 바다 하나를 정복하면 다음 바다가 열려요.</p>
   <div class="route" id="route"></div>
 </main>
@@ -173,7 +176,29 @@ if (!save) save = {prog:[0,0,0]};
 save.coins ??= 0; save.ships ??= [0]; save.ship ??= 0;
 function store(){ try { localStorage.setItem('pado-yeongto', JSON.stringify(save)); } catch(e){} }
 
-const G = {state:'chart', sea:0, players:[], best:0};
+const G = {state:'chart', sea:0, players:[], best:0, fx:[], pop:[]};
+// 효과: 반짝이는 알갱이(fx)와 떠오르는 글자(pop). 위치는 바다 단위 좌표
+function burst(x,y,color,n,sp){
+  for (let i=0;i<n;i++){ const a=Math.random()*6.283, v=sp*(.4+Math.random()), life=.5+Math.random()*.5;
+    G.fx.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life,max:life,c:color,s:2+Math.random()*3}); }
+  if (G.fx.length>400) G.fx.splice(0,G.fx.length-400);
+}
+function popText(x,y,text,color){ G.pop.push({x,y,text,c:color,t:0}); }
+function updateFx(dt){
+  for (let i=G.fx.length-1;i>=0;i--){ const f=G.fx[i];
+    f.x+=f.vx*dt; f.y+=f.vy*dt; f.vx*=.95; f.vy*=.95; if ((f.life-=dt)<=0) G.fx.splice(i,1); }
+  for (let i=G.pop.length-1;i>=0;i--){ if ((G.pop[i].t+=dt)>1.5) G.pop.splice(i,1); }
+}
+function drawFx(camx,camy){
+  for (const f of G.fx){ ctx.globalAlpha=Math.max(0,f.life/f.max); ctx.fillStyle=f.c;
+    ctx.beginPath(); ctx.arc(f.x*cs-camx,f.y*cs-camy,f.s,0,7); ctx.fill(); }
+  ctx.globalAlpha=1; ctx.textAlign='center'; ctx.lineWidth=4; ctx.strokeStyle='rgba(18,30,45,.85)';
+  for (const q of G.pop){ const k=q.t/1.5, s=1+Math.max(0,.25-q.t)*2;
+    ctx.globalAlpha=k<.7?1:1-(k-.7)/.3; ctx.font=`700 ${Math.round(20*s)}px "Gowun Batang",serif`; ctx.fillStyle=q.c;
+    const x=q.x*cs-camx, y=q.y*cs-camy-q.t*cs*1.6;
+    ctx.strokeText(q.text,x,y); ctx.fillText(q.text,x,y); }
+  ctx.globalAlpha=1;
+}
 window.G = G;
 let land, own, trail, seaTotal;
 
@@ -230,6 +255,8 @@ function recount(){
 function kill(p, by){
   if (!p.alive) return;
   p.alive=false; p.respawn=3;
+  burst(p.x,p.y,p.color,p.id?26:34,7);
+  if (by&&by.id===0&&p.id) popText(p.x,p.y-1,p.name+' 격침!','#E9B63A');
   for (let i=0;i<N*N;i++){ if (own[i]===p.id) own[i]=-1; if (trail[i]===p.id) trail[i]=-1; }
   p.trail=[]; p.path=[]; if (by){ by.kills++; if (by.id===0) G.coins+=5; }
   recount();
@@ -251,6 +278,8 @@ function prune(o){
 }
 function capture(p){
   const before=G.players.map(o=>o.count);
+  const spark=p.id===0?'#FFF3B0':p.color, step=Math.max(1,Math.floor(p.trail.length/(p.id?10:36)));
+  for (let k=0;k<p.trail.length;k+=step) burst((p.trail[k]%N+.5)/U,((p.trail[k]/N|0)+.5)/U,spark,1,4);
   for (const c of p.trail){ if (!land[c]) own[c]=p.id; trail[c]=-1; }
   p.trail=[]; p.path=[];
   const seen=new Uint8Array(N*N), q=[];
@@ -262,6 +291,7 @@ function capture(p){
   recount();
   for (const o of G.players) if (o!==p&&o.alive&&o.count>0&&o.count<before[o.id]) prune(o);
   recount();
+  if (p.id===0){ const g=(p.count-before[0])/seaTotal*100; if (g>=.1) popText(p.x,p.y-1.5,'+'+g.toFixed(1)+'%','#FFF3B0'); }
   for (const o of G.players) if (o.alive&&o.count===0) kill(o,p);
 }
 const norm = a => Math.atan2(Math.sin(a),Math.cos(a));
@@ -307,7 +337,7 @@ function move(p,d){
   const ox=p.x, oy=p.y;
   p.x+=Math.cos(a)*d; p.y+=Math.sin(a)*d;
   for (let k=G.items.length-1;k>=0;k--){ const it=G.items[k];
-    if (Math.hypot(it.x-p.x,it.y-p.y)<1.3){ p[it.type]=ITEMS[it.type].sec; G.items.splice(k,1); } }
+    if (Math.hypot(it.x-p.x,it.y-p.y)<1.3){ p[it.type]=ITEMS[it.type].sec; burst(it.x,it.y,'#E9B63A',14,5); G.items.splice(k,1); } }
   const c=cellAt(p.x,p.y);
   if (c!==p.cell){
     p.cell=c;
@@ -380,7 +410,7 @@ function think(b,dt){
 }
 
 function startRound(i){
-  G.sea=i; G.best=0; G.t=0; G.coins=0; G.mile=0; G.items=[]; G.itemT=3;
+  G.sea=i; G.best=0; G.t=0; G.coins=0; G.mile=0; G.items=[]; G.itemT=3; G.fx=[]; G.pop=[];
   land=landMask(SEAS[i]); buildLandF(); own=new Int8Array(N*N).fill(-1); trail=new Int8Array(N*N).fill(-1);
   seaTotal=land.reduce((a,v)=>a+(v?0:1),0);
   G.players=CREW.map((c,id)=>({...c,id,kills:0,count:0,alive:false,trail:[],speed:id?8.2:9,hunter:id!==4,bold:.8+id*.12}));
@@ -409,7 +439,24 @@ function endRound(won){
 }
 $('rBack').onclick=showChart;
 
+// 미니맵: 바다 전체를 작게 그려 내 영토·상대 영토·배 위치를 한눈에 보여 준다
+const MS=112, mctx=$('mini').getContext('2d'), mimg=mctx.createImageData(MS,MS), m32=new Uint32Array(mimg.data.buffer);
+const abgr=hex=>{ const n=parseInt(hex.slice(1),16); return 0xFF000000|((n&255)<<16)|(n&0xFF00)|(n>>16); };
+const MSEA=abgr('#1C5D73'), MLAND=abgr('#D9C48F');
+function drawMini(){
+  const col=G.players.map(p=>abgr(p.color));
+  for (let my=0;my<MS;my++){ const row=((my+.5)*N/MS|0)*N;
+    for (let mx=0;mx<MS;mx++){ const i=row+((mx+.5)*N/MS|0);
+      m32[my*MS+mx]=land[i]?MLAND:own[i]>=0?col[own[i]]:MSEA; } }
+  mctx.putImageData(mimg,0,0);
+  for (const p of G.players){ if (!p.alive) continue;
+    const x=p.x/WU*MS, y=p.y/WU*MS, me=p.id===0;
+    mctx.beginPath(); mctx.arc(x,y,me?4.5:2.5,0,7);
+    mctx.fillStyle=me?'#fff':p.color; mctx.fill();
+    mctx.lineWidth=me?2:1; mctx.strokeStyle=me?'#22303F':'#fff'; mctx.stroke(); }
+}
 function hud(){
+  drawMini();
   const me=G.players[0], share=me.count/seaTotal;
   $('goalFill').style.width=Math.min(100,share/GOAL*100)+'%';
   $('goalText').textContent=`${(share*100).toFixed(1)}% / 목표 ${GOAL*100}%`;
@@ -530,6 +577,7 @@ function draw(){
   drawItems(camx,camy);
   for (const p of G.players) if (p.alive&&p.id) drawShip(p,camx,camy);
   if (me.alive) drawShip(me,camx,camy);
+  drawFx(camx,camy);
   drawJoy();
 }
 
@@ -538,6 +586,7 @@ function frame(t){
   const dt=Math.min(.05,(t-last)/1000||0); last=t;
   if (G.state==='play'){
     G.t+=dt; if (G.t>5) $('hint').hidden=true;
+    updateFx(dt);
     for (const p of G.players){
       if (!p.alive){ if (p.id&&(p.respawn-=dt)<0) spawn(p); continue; }
       if (p.id) think(p,dt);
