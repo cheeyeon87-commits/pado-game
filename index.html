@@ -40,6 +40,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #hud{position:fixed;inset:0;pointer-events:none;color:#fff;padding:max(12px,env(safe-area-inset-top)) 12px 12px}
 #goal{height:26px;border-radius:13px;background:rgba(18,30,45,.7);border:2px solid var(--paper);overflow:hidden;position:relative}
 #goalFill{height:100%;width:0;background:var(--blood);transition:width .2s}
+#bestMark{position:absolute;top:0;bottom:0;width:3px;background:#FFD34D;box-shadow:0 0 6px #FFD34D;z-index:1}
 #goalText{position:absolute;inset:0;display:grid;place-items:center;font-weight:700;font-size:14px}
 #kills{position:absolute;left:12px;top:calc(max(12px,env(safe-area-inset-top)) + 36px);
   background:rgba(18,30,45,.7);border-radius:10px;padding:4px 10px;font-weight:700}
@@ -107,7 +108,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 <canvas id="c"></canvas>
 
 <div id="hud" hidden>
-  <div id="goal"><div id="goalFill"></div><i class="tick" style="left:20%"></i><i class="tick" style="left:40%"></i><i class="tick" style="left:60%"></i><i class="tick" style="left:80%"></i><div id="goalText"></div></div>
+  <div id="goal"><div id="goalFill"></div><i class="tick" style="left:20%"></i><i class="tick" style="left:40%"></i><i class="tick" style="left:60%"></i><i class="tick" style="left:80%"></i><i id="bestMark" hidden></i><div id="goalText"></div></div>
   <div id="kills"></div>
   <div id="purse"></div>
   <div id="buff" hidden></div>
@@ -196,7 +197,7 @@ addEventListener('resize', resize); resize();
 let save;
 try { save = JSON.parse(localStorage.getItem('pado-yeongto')); } catch(e){}
 if (!save) save = {prog:[0,0,0]};
-save.coins ??= 0; save.ships ??= [0]; save.ship ??= 0; save.set ??= {sfx:1, bgm:1, vib:1}; save.tut ??= 0;
+save.coins ??= 0; save.ships ??= [0]; save.ship ??= 0; save.set ??= {sfx:1, bgm:1, vib:1}; save.tut ??= 0; save.top ??= [0,0,0];
 function store(){ try { localStorage.setItem('pado-yeongto', JSON.stringify(save)); } catch(e){} }
 
 // 소리: 소리 파일 없이 브라우저가 직접 만드는 소리(권리 문제 없음). 휴대폰은 첫 터치 뒤에야 소리를 낼 수 있다
@@ -244,25 +245,29 @@ function setWaves(){
   } else if (!save.set.bgm&&waves){ waves.src.stop(); waves.lfo.stop(); waves=null; }
 }
 
-const G = {state:'chart', sea:0, players:[], best:0, fx:[], pop:[], islands:[]};
+const G = {state:'chart', sea:0, players:[], best:0, fx:[], pop:[], rings:[], islands:[]};
 // 효과: 반짝이는 알갱이(fx)와 떠오르는 글자(pop). 위치는 바다 단위 좌표
 function burst(x,y,color,n,sp){
   for (let i=0;i<n;i++){ const a=Math.random()*6.283, v=sp*(.4+Math.random()), life=.5+Math.random()*.5;
     G.fx.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life,max:life,c:color,s:2+Math.random()*3}); }
   if (G.fx.length>400) G.fx.splice(0,G.fx.length-400);
 }
-function popText(x,y,text,color){ G.pop.push({x,y,text,c:color,t:0}); }
+function popText(x,y,text,color,big){ G.pop.push({x,y,text,c:color,t:0,big:big||1}); }
+function ring(x,y,color,r){ G.rings.push({x,y,c:color,r,t:0}); }
 function updateFx(dt){
   for (let i=G.fx.length-1;i>=0;i--){ const f=G.fx[i];
     f.x+=f.vx*dt; f.y+=f.vy*dt; f.vx*=.95; f.vy*=.95; if ((f.life-=dt)<=0) G.fx.splice(i,1); }
   for (let i=G.pop.length-1;i>=0;i--){ if ((G.pop[i].t+=dt)>1.5) G.pop.splice(i,1); }
+  for (let i=G.rings.length-1;i>=0;i--){ if ((G.rings[i].t+=dt)>.7) G.rings.splice(i,1); }
 }
 function drawFx(camx,camy){
+  for (const q of G.rings){ const k=q.t/.7; ctx.globalAlpha=(1-k)*.8; ctx.strokeStyle=q.c; ctx.lineWidth=6*(1-k)+1;   // 빛 파동: 퍼지며 사라지는 동그라미 두 겹
+    for (const d of [0,.25]){ const kk=Math.max(0,k-d); if (kk<=0) continue; ctx.beginPath(); ctx.arc(q.x*cs-camx,q.y*cs-camy,q.r*cs*(.3+kk*.9),0,7); ctx.stroke(); } }
   for (const f of G.fx){ ctx.globalAlpha=Math.max(0,f.life/f.max); ctx.fillStyle=f.c;
     ctx.beginPath(); ctx.arc(f.x*cs-camx,f.y*cs-camy,f.s,0,7); ctx.fill(); }
   ctx.globalAlpha=1; ctx.textAlign='center'; ctx.lineWidth=4; ctx.strokeStyle='rgba(18,30,45,.85)';
   for (const q of G.pop){ const k=q.t/1.5, s=1+Math.max(0,.25-q.t)*2;
-    ctx.globalAlpha=k<.7?1:1-(k-.7)/.3; ctx.font=`700 ${Math.round(20*s)}px "Gowun Batang",serif`; ctx.fillStyle=q.c;
+    ctx.globalAlpha=k<.7?1:1-(k-.7)/.3; ctx.font=`700 ${Math.round(20*s*q.big)}px "Gowun Batang",serif`; ctx.fillStyle=q.c;
     const x=q.x*cs-camx, y=q.y*cs-camy-q.t*cs*1.6;
     ctx.strokeText(q.text,x,y); ctx.fillText(q.text,x,y); }
   ctx.globalAlpha=1;
@@ -428,7 +433,7 @@ function capture(p){
   recount();
   for (const o of G.players) if (o!==p&&o.alive&&o.count>0&&o.count<before[o.id]) prune(o);
   recount();
-  if (p.id===0){ const g=(p.count-before[0])/seaTotal*100; if (g>=.1) popText(p.x,p.y-1.5,'+'+g.toFixed(1)+'%','#FFF3B0'); sfx('capture'); buzz(20); G.tutCap=true; }
+  if (p.id===0){ const g=(p.count-before[0])/seaTotal*100; if (g>=.1){ const big=1+Math.min(1,g/8); popText(p.x,p.y-1.5,'+'+g.toFixed(1)+'%',g>=4?'#FFD34D':'#FFF3B0',big); if (g>=1) ring(p.x,p.y,'#FFF3B0',Math.min(9,2+g*.9)); } sfx('capture'); buzz(20); G.tutCap=true; }
   for (const o of G.players) if (o.alive&&o.count===0) kill(o,p);
 }
 const norm = a => Math.atan2(Math.sin(a),Math.cos(a));
@@ -570,7 +575,7 @@ function tutorial(dt){
   $('hint').textContent=TUT[G.tut];
 }
 function startRound(i){
-  G.sea=i; G.best=0; G.t=0; G.coins=0; G.mile=0; G.items=[]; G.itemT=3; G.fx=[]; G.pop=[]; G.wasTop=false;
+  G.sea=i; G.best=0; G.t=0; G.coins=0; G.mile=0; G.items=[]; G.itemT=3; G.fx=[]; G.pop=[]; G.rings=[]; G.wasTop=false; G.beat=false;
   land=landMask(SEAS[i]); buildLandF(); buildIslands(); own=new Int8Array(N*N).fill(-1); trail=new Int8Array(N*N).fill(-1);
   seaTotal=land.reduce((a,v)=>a+(v?0:1),0);
   G.players=CREW.map((c,id)=>({...c,id,kills:0,count:0,alive:false,trail:[],speed:id?5.7:6.3,hunter:id!==4,bold:.8+id*.12}));
@@ -586,6 +591,7 @@ function startRound(i){
 function endRound(won){
   G.state='over';
   const me=G.players[0], i=G.sea;
+  save.top[i]=Math.max(save.top[i]||0,G.best);
   save.prog[i]=Math.min(100, won?100:save.prog[i]+Math.round(G.best*100/GOAL));
   if (won){ G.coins+=30; sfx('win'); buzz([60,60,120]); }
   save.coins+=G.coins; store();
@@ -627,6 +633,8 @@ function hud(){
   drawMini();
   const me=G.players[0], share=me.count/seaTotal;
   $('goalFill').style.width=Math.min(100,share/GOAL*100)+'%';
+  const tp=save.top[G.sea]||0; $('bestMark').hidden=tp<=0; $('bestMark').style.left=Math.min(99,tp/GOAL*100)+'%';   // 내 최고 기록 깃발
+  if (tp>.02&&!G.beat&&share>tp&&G.state==='play'){ G.beat=true; popText(me.x,me.y-4.5,'최고 기록!','#FFD34D',1.2); sfx('coin'); }
   $('goalText').textContent=`${(share*100).toFixed(1)}% / 목표 ${GOAL*100}%`;
   $('kills').textContent='격침 '+me.kills;
   $('purse').innerHTML='<i class="coin"></i>'+G.coins;
