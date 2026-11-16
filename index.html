@@ -440,7 +440,6 @@ const norm = a => Math.atan2(Math.sin(a),Math.cos(a));
 function step(p,dt){
   const turn=(p.id?7:14)*dt; p.ang += Math.max(-turn,Math.min(turn,norm(p.want-p.ang)));
   if (p.wind>0) p.wind-=dt; if (p.shield>0) p.shield-=dt;
-  if (p.grace>0) p.grace-=dt; for (const o of G.players) if (o!==p&&o.alive&&Math.hypot(o.x-p.x,o.y-p.y)<2.6) p.grace=.45;
   const dist=p.speed*Math.min(2.5,(1+p.boost)*(p.wind>0?1.5:1))*(1+.2*ab(p,'wind'))*dt, n=Math.ceil(dist*U/.45);
   let hug=false; const ox=p.x, oy=p.y;
   for (let k=0;k<n&&p.alive&&G.state==='play';k++) if (move(p,dist/n)) hug=true;
@@ -485,7 +484,7 @@ function move(p,d){
   if (c!==p.cell){
     p.cell=c;
     const t=trail[c];
-    if (t>=0&&t!==p.id&&!(p.grace>0&&Math.hypot(p.x-G.players[t].x,p.y-G.players[t].y)<8)){   // 배끼리 닿는 건 괜찮고(닿은 뒤 잠깐은 물길도 안 끊김), 물길 중간을 먼저 끊는 쪽이 이긴다
+    if (t>=0&&t!==p.id&&!(G.players[t].trail.lastIndexOf(c)>=G.players[t].trail.length-80&&Math.hypot(p.x-G.players[t].x,p.y-G.players[t].y)<4)){   // 배끼리 닿는 건 괜찮고(닿은 뒤 잠깐은 물길도 안 끊김), 물길 중간을 먼저 끊는 쪽이 이긴다
       const o=G.players[t];
       if (o.shield>0) o.shield=0;            // 방어막이 물길을 한 번 지켜 준다
       else kill(o,p);
