@@ -544,7 +544,7 @@ function move(p,d){
   if (c!==p.cell){
     p.cell=c;
     const t=trail[c];
-    if (t>=0&&t!==p.id&&!(G.players[t].trail.lastIndexOf(c)>=G.players[t].trail.length-80&&Math.hypot(p.x-G.players[t].x,p.y-G.players[t].y)<4)){   // 배끼리 닿는 건 괜찮고(닿은 뒤 잠깐은 물길도 안 끊김), 물길 중간을 먼저 끊는 쪽이 이긴다
+    if (t>=0&&t!==p.id&&!(G.players[t].trail.lastIndexOf(c)>=G.players[t].trail.length-80&&Math.hypot(p.x-G.players[t].x,p.y-G.players[t].y)<4&&Math.cos(p.ang-G.players[t].ang)<-.5)){   // 마주 보고 부딪힌 것만 봐주고(정면 충돌), 옆이나 뒤에서 물길을 먼저 끊는 쪽이 이긴다
       const o=G.players[t];
       if (o.shield>0) o.shield=0;            // 방어막이 물길을 한 번 지켜 준다
       else kill(o,p);
@@ -613,6 +613,9 @@ function think(b,dt){
     const t=scan(b,b.kind==='aggressive'?8:5.5,i=>trail[i]>=0&&trail[i]!==b.id);
     if (t) b.want=to(t[0],t[1]);
   }
+  // 구석에 1초 넘게 끼면 다른 방향으로 1초 빠져나온다(끼인 채 멈춰 있지 않게)
+  if (b.stuck){ b.stuckT=(b.stuckT||0)+.1; if (b.stuckT>1){ b.kickA=b.sideWant+(Math.random()<.5?1:-1)*(1.3+Math.random()); b.kickT=1; b.stuckT=0; } } else b.stuckT=0;
+  if ((b.kickT||0)>0){ b.kickT-=.1; b.want=b.kickA; }
 }
 
 const HINT=$('hint').innerHTML;
