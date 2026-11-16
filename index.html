@@ -16,28 +16,28 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 .brush{font-family:"East Sea Dokdo","Gowun Batang",serif;font-weight:400}
 
 /* 해도(바다 고르기) */
-#chart{position:fixed;inset:0;overflow:hidden;padding:max(20px,env(safe-area-inset-top)) 20px 20px;
+#chart{position:fixed;inset:0;overflow:hidden;display:flex;flex-direction:column;padding:max(20px,env(safe-area-inset-top)) 20px 20px;
   background:
     radial-gradient(circle at 12% 8%,rgba(120,80,30,.28),transparent 34%),
     radial-gradient(circle at 92% 96%,rgba(120,80,30,.34),transparent 40%),
     radial-gradient(circle at 80% 30%,rgba(255,244,200,.5),transparent 45%),
     var(--paper)}
-#chart h1{font-size:clamp(48px,14vw,96px);line-height:.8;transform:rotate(-4deg);transform-origin:left;margin-top:8px;width:max-content;pointer-events:none}
-#chart .lead{margin-top:18px;font-size:16px;line-height:1.6;max-width:22em}
-.route{position:absolute;left:0;right:0;top:230px;bottom:128px}
-.route svg{position:absolute;inset:0;width:100%;height:100%}
-.stop{position:absolute;transform:translate(-50%,-50%);background:none;border:0;color:inherit;font:inherit;
-  text-align:center;cursor:pointer;padding:6px}
-.stop canvas{position:static;width:104px;height:104px;border-radius:50%;border:3px solid var(--ink);
-  box-shadow:0 0 0 5px var(--paper),0 0 0 6px var(--ink)}
-.stop .name{display:block;font-size:40px;line-height:1;margin-top:8px}
-.stop .prog{display:block;font-size:14px;margin-top:2px}
+#chart .head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#chart h1{font-size:clamp(40px,11vw,80px);line-height:.9;transform:rotate(-4deg);transform-origin:left;width:max-content;pointer-events:none}
+#chart .lead{margin-top:12px;font-size:15px;line-height:1.5;max-width:22em}
+.route{position:relative;flex:1;min-height:0;overflow-y:auto;touch-action:pan-y;display:flex;flex-direction:column;gap:8px;margin:10px 0 8px;padding:4px 2px}
+.stop{display:flex;align-items:center;gap:12px;text-align:left;background:none;border:0;color:inherit;font:inherit;cursor:pointer;padding:6px;flex:none;align-self:flex-start;max-width:100%}
+.stop:nth-child(even){align-self:flex-end;flex-direction:row-reverse;text-align:right}
+.stop canvas{position:static;width:76px;height:76px;flex:none;border-radius:50%;border:3px solid var(--ink);
+  box-shadow:0 0 0 4px var(--paper),0 0 0 5px var(--ink)}
+.stop .name{display:block;font-size:34px;line-height:1}
+.stop .prog{display:block;font-size:13px;margin-top:2px}
 .stop:focus-visible canvas{outline:3px solid var(--blood);outline-offset:8px}
 .stop.locked{cursor:default;opacity:.55}
 .stop.done .prog{color:var(--blood);font-weight:700}
 
-#showcase{position:absolute;inset:auto;right:16px;top:64px;width:106px;height:72px;border-radius:12px;border:2px solid var(--ink)}
-#extras{position:absolute;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));display:flex;flex-wrap:wrap;gap:6px;z-index:2;align-items:center}
+#showcase{position:static;inset:auto;width:92px;height:62px;flex:none;border-radius:12px;border:2px solid var(--ink)}
+#extras{position:static;display:flex;flex-wrap:wrap;gap:6px;z-index:2;align-items:center}
 #extras button,#extras input{font:inherit;font-weight:700;font-size:14px;padding:9px 10px;border:2px solid var(--ink);border-radius:8px;background:var(--paper);color:var(--ink)}
 #extras input{width:62px}
 #extras button.gift{background:var(--gold)}
@@ -83,7 +83,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
   background:rgba(230,211,163,.92);color:var(--ink);border-radius:10px;padding:4px 10px;font-weight:700}
 .coin{display:inline-block;width:.85em;height:.85em;border-radius:50%;background:var(--gold);
   box-shadow:inset 0 0 0 2px #B98A1F;vertical-align:-.08em;margin-right:.3em}
-#harbor{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;position:relative;z-index:2}
+#harbor{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;position:relative;z-index:2}
 #harbor .have{margin-right:auto}
 #harbor .have{font-weight:700;font-size:17px}
 #harbor button,#dock .close{font:inherit;font-weight:700;font-size:15px;margin-top:8px;padding:9px 14px;
@@ -109,6 +109,26 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 .ship button:disabled{opacity:.5;cursor:default}
 #harbor button:focus-visible,#dock button:focus-visible{outline:3px solid var(--blood);outline-offset:2px}
 
+.back{position:sticky;top:0;z-index:3;font:inherit;font-weight:700;font-size:15px;padding:9px 14px;margin:0 0 10px;
+  background:var(--ink);color:var(--paper);border:0;border-radius:6px;cursor:pointer;box-shadow:0 0 0 6px var(--paper)}
+#pauseBtn{position:absolute;right:12px;bottom:max(12px,env(safe-area-inset-bottom));width:48px;height:48px;pointer-events:auto;
+  border-radius:50%;border:2px solid var(--paper);background:rgba(18,30,45,.7);color:var(--paper);font-size:15px;font-weight:700;cursor:pointer}
+/* 멈춤 */
+#pause{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:rgba(18,30,45,.6);padding:20px}
+#pause .card{background:var(--paper);border:3px solid var(--ink);border-radius:6px;padding:24px 22px;width:min(300px,100%);text-align:center;box-shadow:6px 8px 0 rgba(0,0,0,.35)}
+#pause h2{font-size:52px;line-height:.9;margin-bottom:8px}
+#pause button{display:block;width:100%;font:inherit;font-weight:700;font-size:17px;padding:13px;margin-top:10px;border:2px solid var(--ink);border-radius:6px;background:transparent;color:var(--ink);cursor:pointer}
+#pause button.main{background:var(--blood);color:#fff;border-color:var(--blood)}
+
+/* 광고 */
+#ad{position:fixed;inset:0;z-index:25;display:grid;place-items:center;background:rgba(18,30,45,.85);padding:20px}
+#ad .card{background:var(--paper);border:3px solid var(--ink);border-radius:6px;padding:20px 22px;width:min(320px,100%);text-align:center}
+#ad .adtag{font-size:13px;font-weight:700;color:var(--blood)}
+#ad .adbody{margin:26px 0;min-height:80px;display:grid;place-items:center;font-size:15px;line-height:1.5;border:2px dashed var(--ink);border-radius:6px;padding:10px}
+#ad button{display:block;width:100%;font:inherit;font-weight:700;font-size:17px;padding:13px;border:2px solid var(--ink);border-radius:6px;background:transparent;color:var(--ink);cursor:pointer}
+#ad button:disabled{opacity:.5;cursor:default}
+#result button.gift{background:var(--gold);border-color:var(--ink)}
+
 /* 결과 */
 #result{position:fixed;inset:0;display:grid;place-items:center;background:rgba(18,30,45,.6);padding:20px}
 #result .card{background:var(--paper);border:3px solid var(--ink);border-radius:6px;padding:24px 22px;width:min(340px,100%);
@@ -130,6 +150,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
   <div id="kills"></div>
   <div id="purse"></div>
   <div id="buff" hidden></div>
+  <button id="pauseBtn" aria-label="멈춤">❚❚</button>
   <ol id="board"></ol>
   <canvas id="mini" width="224" height="224"></canvas>
   <div id="hint">화면 아무 곳이나 누르면 조이스틱이 생겨요. 가고 싶은 쪽으로 밀어요.<br>내 바다 밖으로 나갔다가 돌아오면, 물길로 둘러싼 곳이 내 바다가 돼요.<br>해안에 붙어서 가면 점점 빨라져요.</div>
@@ -137,14 +158,14 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 
 <main id="chart">
   <div id="harbor"><div class="have" id="haveChart"></div><button id="openDock">내 배 고르기</button><button id="openSet">설정</button></div>
-  <h1 class="brush">타이드 클레임</h1>
-  <canvas id="showcase" width="248" height="168"></canvas>
+  <div class="head"><h1 class="brush">타이드 클레임</h1><canvas id="showcase" width="248" height="168"></canvas></div>
   <p class="lead">물길로 바다를 둘러싸서 내 것으로 만드세요. 바다 하나를 정복하면 다음 바다가 열려요.</p>
   <div class="route" id="route"></div>
   <div id="extras"></div>
 </main>
 
 <section id="dock" hidden>
+  <button class="back" id="backDock">← 뒤로</button>
   <h2 class="brush">조선소</h2>
   <p class="have" id="haveDock"></p>
   <div id="ships"></div>
@@ -154,6 +175,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 </section>
 
 <section id="settings" hidden>
+  <button class="back" id="backSet">← 뒤로</button>
   <h2 class="brush">설정</h2>
   <label class="opt">효과음 <input type="checkbox" data-k="sfx"></label>
   <label class="opt">파도 소리 <input type="checkbox" data-k="bgm"></label>
@@ -163,6 +185,22 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
   <p class="note">기록(정복도, 금화, 배)은 이 기기에만 저장되고 어디로도 보내지 않아요.</p>
   <button class="close" id="closeSet">해도로 돌아가기</button>
 </section>
+
+<div id="pause" hidden>
+  <div class="card">
+    <h2 class="brush">잠깐 멈춤</h2>
+    <button class="main" id="pResume">계속하기</button>
+    <button id="pExit">해도로 나가기</button>
+  </div>
+</div>
+
+<div id="ad" hidden>
+  <div class="card">
+    <p class="adtag">광고</p>
+    <p class="adbody">(시험용 광고 자리 — 광고 회사 연결 전)</p>
+    <button id="adClose" disabled></button>
+  </div>
+</div>
 
 <div id="result" hidden>
   <div class="card">
@@ -174,6 +212,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
       <dt id="rSeaName"></dt><dd id="rProg"></dd>
     </dl>
     <p id="rNote"></p>
+    <button class="gift" id="rDouble" hidden></button>
     <button class="main" id="rMain"></button>
     <button id="rBack">해도로 돌아가기</button>
   </div>
@@ -238,8 +277,11 @@ let save;
 try { save = JSON.parse(localStorage.getItem('pado-yeongto')); } catch(e){}
 if (!save) save = {prog:[0,0,0]};
 function fillSave(){ save.coins ??= 0; save.ships ??= [0]; save.ship ??= 0; save.set ??= {sfx:1, bgm:1, vib:1}; save.tut ??= 0; save.top ??= [0,0,0];
-  save.trails ??= [0]; save.trail ??= 0; save.seedTop ??= {}; save.daily ??= {last:'',streak:0,done:''}; save.stats ??= {kills:0,wins:0,isles:0,rounds:0}; save.ach ??= []; }
+  save.trails ??= [0]; save.trail ??= 0; save.seedTop ??= {}; save.daily ??= {last:'',streak:0,done:''}; save.stats ??= {kills:0,wins:0,isles:0,rounds:0}; save.ach ??= []; save.adRounds ??= 0; }
 fillSave();
+// 광고: 광고 회사를 연결하기 전까지 꺼 둔다(켜면 시험용 광고 자리가 나온다). 판 중에는 절대 안 나오고, 판 끝 화면에서만:
+// ① 5판마다 짧은 광고 1개(5초 뒤 닫기)  ② 사용자가 직접 누르면 금화 두 배
+const ADS={on:false,every:5,sec:5};
 function store(){ try { localStorage.setItem('pado-yeongto', JSON.stringify(save)); } catch(e){} }
 
 // 소리: 소리 파일 없이 브라우저가 직접 만드는 소리(권리 문제 없음). 휴대폰은 첫 터치 뒤에야 소리를 낼 수 있다
@@ -490,6 +532,11 @@ function capture(p){
     }
     if (ok&&touch&&comp.length<=lim) for (const i of comp) own[i]=p.id;
   }
+  // 한 칸 폭의 좁은 빈틈(양옆이 영토인 빈 바다 칸)은 눈에 띄는 틈이 되므로 메운다. 양옆 중 하나가 내 칸일 때만
+  for (let rep=0;rep<2;rep++) for (let y=1;y<N-1;y++) for (let x=1;x<N-1;x++){ const i=y*N+x;
+    if (land[i]||own[i]>=0||trail[i]>=0) continue;
+    const a=land[i-1]?-1:own[i-1], c=land[i+1]?-1:own[i+1], u=land[i-N]?-1:own[i-N], d=land[i+N]?-1:own[i+N];
+    if ((a>=0&&c>=0&&(a===p.id||c===p.id))||(u>=0&&d>=0&&(u===p.id||d===p.id))) own[i]=p.id; }
   recount();
   for (const o of G.players) if (o!==p&&o.alive&&o.count>0&&o.count<before[o.id]) prune(o);
   recount();
@@ -637,6 +684,7 @@ function tutorial(dt){
   $('hint').textContent=TUT[G.tut];
 }
 function startRound(i,custom){
+  pushS();
   G.sea=i; G.custom=custom||null; G.best=0; G.t=0; G.coins=0; G.mile=0; G.items=[]; G.itemT=3; G.fx=[]; G.pop=[]; G.rings=[]; G.wasTop=false; G.beat=false;
   land=landMask(custom||SEAS[i]); buildLandF(); buildIslands(); own=new Int8Array(N*N).fill(-1); trail=new Int8Array(N*N).fill(-1);
   seaTotal=land.reduce((a,v)=>a+(v?0:1),0);
@@ -661,7 +709,7 @@ function endRound(won){
   else { save.top[i]=Math.max(prevTop,G.best); save.prog[i]=Math.min(100, won?100:save.prog[i]+Math.round(G.best*100/GOAL)); }
   if (won){ G.coins+=30; sfx('win'); buzz([60,60,120]); }
   if (won&&cu&&cu.daily&&save.daily.done!==today()){ save.daily.done=today(); G.coins+=20; note.push('오늘의 바다 첫 완주 보너스 +20닢'); }
-  save.stats.rounds++; if (won) save.stats.wins++;
+  save.stats.rounds++; if (won) save.stats.wins++; if (ADS.on) save.adRounds++;
   save.coins+=G.coins;
   const got=checkAch(); got.forEach(a=>note.push('업적 달성: '+a.name+' ('+a.text+')'));
   store();
@@ -675,9 +723,11 @@ function endRound(won){
   $('rSeaName').textContent=cu?cu.name+' 최고 기록':SEAS[i].name+' 정복도';
   $('rProg').textContent=cu?(save.seedTop[cu.seed]*100).toFixed(1)+'%':save.prog[i]+'%';
   $('rNote').innerHTML=note.join('<br>');
-  const main=$('rMain');
-  if (done&&next){ main.textContent='다음 바다로 출항'; main.onclick=()=>startRound(i+1); }
-  else { main.textContent='다시 출항'; main.onclick=()=>startRound(i,cu); }
+  const main=$('rMain'), dbl=$('rDouble'), earned=G.coins;
+  dbl.hidden=!(ADS.on&&earned>0); dbl.textContent='광고 보고 금화 두 배 (+'+earned+'닢)';
+  dbl.onclick=()=>showAd(()=>{ save.coins+=earned; store(); $('rCoins').textContent=earned*2+'닢'; dbl.hidden=true; });
+  if (done&&next){ main.textContent='다음 바다로 출항'; main.onclick=adGate(()=>startRound(i+1)); }
+  else { main.textContent='다시 출항'; main.onclick=adGate(()=>startRound(i,cu)); }
   $('hud').hidden=true; $('result').hidden=false; main.focus();
 }
 // 업적 확인: 새로 달성한 것만 돌려주고 보상을 준다
@@ -689,7 +739,15 @@ function checkAch(){
 }
 let toastT=0;
 function toast(msg){ const el=document.getElementById('toast')||Object.assign(document.body.appendChild(document.createElement('div')),{id:'toast'}); el.textContent=msg; el.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>el.hidden=true,2600); }
-$('rBack').onclick=showChart;
+// 광고 보여 주기(광고 회사를 붙이면 이 안쪽만 바꾼다). 닫으면 next 실행
+function showAd(next){
+  $('ad').hidden=false; const b=$('adClose'); let t=ADS.sec; b.disabled=true; b.textContent=t+'초 뒤 닫을 수 있어요';
+  const iv=setInterval(()=>{ t--; if (t>0) b.textContent=t+'초 뒤 닫을 수 있어요'; else { clearInterval(iv); b.disabled=false; b.textContent='닫기'; } },1000);
+  b.onclick=()=>{ if (b.disabled) return; $('ad').hidden=true; next&&next(); };
+}
+// 판 끝 화면에서 버튼을 누를 때, 5판이 쌓였으면 광고를 먼저 보여 준다
+const adGate=fn=>()=>{ if (ADS.on&&save.adRounds>=ADS.every){ save.adRounds=0; store(); showAd(fn); } else fn(); };
+$('rBack').onclick=adGate(showChart);
 
 // 미니맵: 바다 전체를 작게 그려 내 영토·상대 영토·배 위치를 한눈에 보여 준다
 const MS=224, mctx=$('mini').getContext('2d'), mo=document.createElement('canvas'); mo.width=mo.height=N;
@@ -962,8 +1020,9 @@ function drawJoy(){
 }
 
 const coinText=()=>'<i class="coin"></i>금화 '+save.coins+'닢';
+const pushS=()=>{ try{ history.pushState({s:1},''); }catch(e){} };   // 폰의 '뒤로' 버튼으로 화면을 닫을 수 있게 기록을 하나 쌓는다
 function showDock(){
-  $('dock').hidden=false; $('haveDock').innerHTML=coinText(); showTrails();
+  pushS(); $('dock').hidden=false; $('haveDock').innerHTML=coinText(); showTrails();
   $('ships').innerHTML=SHIPS.map((sh,i)=>{
     const own=save.ships.includes(i), on=save.ship===i;
     return `<div class="ship"><canvas width="192" height="144"></canvas><h3>${sh.name}</h3><p>${sh.desc} 영토 무늬: ${PATN[sh.pat]}</p>
@@ -988,7 +1047,7 @@ $('openDock').onclick=showDock;
 // 설정: 켜고 끈 것은 바로 저장된다. 기록 지우기는 실수로 지우지 않게 4초 안에 두 번 눌러야 한다
 let wipeT=0;
 function showSettings(){
-  $('settings').hidden=false;
+  pushS(); $('settings').hidden=false;
   document.querySelectorAll('#settings input').forEach(el=>el.checked=!!save.set[el.dataset.k]);
   $('tutAgain').textContent=save.tut?'처음 안내 다시 보기':'처음 안내 다시 보기 (다음 판에 나와요)';
   $('wipe').textContent='기록 지우기'; wipeT=0;
@@ -1002,8 +1061,19 @@ $('wipe').onclick=()=>{
   save={prog:[0,0,0], coins:0, ships:[0], ship:0, set:save.set, tut:0}; fillSave(); store();
   $('wipe').textContent='지웠어요'; wipeT=0;
 };
-$('closeSet').onclick=()=>{ $('settings').hidden=true; showChart(); };
-$('closeDock').onclick=()=>{ $('dock').hidden=true; showChart(); };
+$('closeSet').onclick=$('backSet').onclick=()=>{ $('settings').hidden=true; showChart(); };
+$('closeDock').onclick=$('backDock').onclick=()=>{ $('dock').hidden=true; showChart(); };
+// 멈춤: 판 중에 잠깐 멈추거나 해도로 나간다(나가면 그때까지의 기록은 저장). 화면이 가려지면 자동으로 멈춘다
+function pauseGame(){ if (G.state!=='play') return; G.state='pause'; joy=null; $('pause').hidden=false; }
+$('pauseBtn').onclick=pauseGame;
+$('pResume').onclick=()=>{ $('pause').hidden=true; if (G.state==='pause') G.state='play'; };
+$('pExit').onclick=()=>{ $('pause').hidden=true; G.state='play'; endRound(false); showChart(); };
+addEventListener('popstate',()=>{            // 폰의 뒤로 버튼: 열린 화면 닫기 → 판 중이면 멈춤
+  if (!$('dock').hidden){ $('dock').hidden=true; showChart(); }
+  else if (!$('settings').hidden){ $('settings').hidden=true; showChart(); }
+  else if (G.state==='play') pauseGame();
+});
+document.addEventListener('visibilitychange',()=>{ if (document.hidden) pauseGame(); });
 // 시작 화면의 배 전시대: 내 배가 물길을 끌며 천천히 떠 있다
 const sc=$('showcase').getContext('2d');
 function drawShowcase(t){
@@ -1020,14 +1090,11 @@ function showChart(){
   const dl=save.daily, claimed=dl.last===today(), ds=dailySeed();
   $('extras').innerHTML=`<button class="gift" id="claim" ${claimed?'disabled':''}>${claimed?'출석 완료 '+dl.streak+'일째':'출석 보상'}</button>
     <button id="goDaily">오늘의 바다</button><input id="seedIn" type="number" min="1" max="9999" placeholder="번호" aria-label="바다 번호"><button id="goSeed">번호 출항</button>`;
-  const pos=[[30,14],[70,48],[32,82]];
-  $('route').innerHTML=`<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-    <path d="M30 14 C60 20,80 30,70 48 S20 60,32 82" fill="none" stroke="#22303F" stroke-width="2.5" stroke-dasharray="7 7" vector-effect="non-scaling-stroke"/></svg>`
-   + SEAS.map((s,i)=>{
+  $('route').innerHTML=SEAS.map((s,i)=>{
       const open=i===0||save.prog[i-1]>=100, done=save.prog[i]>=100;
-      return `<button class="stop ${open?'':'locked'} ${done?'done':''}" style="left:${pos[i][0]}%;top:${pos[i][1]}%" data-i="${i}" ${open?'':'disabled'}>
-        <canvas width="104" height="104"></canvas><span class="name brush">${s.name}</span>
-        <span class="prog">${open?(done?'정복 완료':'정복도 '+save.prog[i]+'%'):'앞 바다를 정복하면 열려요'}</span></button>`;
+      return `<button class="stop ${open?'':'locked'} ${done?'done':''}" data-i="${i}" ${open?'':'disabled'}>
+        <canvas width="104" height="104"></canvas><span class="txt"><span class="name brush">${s.name}</span>
+        <span class="prog">${open?(done?'정복 완료':'정복도 '+save.prog[i]+'%'):'앞 바다를 정복하면 열려요'}</span></span></button>`;
     }).join('');
   document.querySelectorAll('.stop').forEach(b=>{
     const i=+b.dataset.i, m=landMask(SEAS[i]), c=b.querySelector('canvas').getContext('2d'), k=104/N;
