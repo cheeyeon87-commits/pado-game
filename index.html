@@ -53,7 +53,8 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 .abar{display:block;height:8px;margin-top:4px;border-radius:4px;background:rgba(34,48,63,.25);overflow:hidden}
 .abar i{display:block;height:100%;background:var(--gold)}
 .acnt{display:block;font-size:12px;text-align:right}
-#rNote{margin-top:10px;font-weight:700;color:#FFD34D;text-align:center;min-height:1.3em}
+#rNote{margin-top:10px;font-weight:700;color:var(--ink);text-align:center;min-height:1.3em}
+#rNote:not(:empty){background:rgba(233,182,58,.28);border-radius:8px;padding:6px 8px}
 #rCoins.pop{display:inline-block;animation:coinpop .7s}
 @keyframes coinpop{0%{transform:scale(.4)}60%{transform:scale(1.45)}100%{transform:scale(1)}}
 
@@ -76,7 +77,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #mini{position:absolute;inset:auto;left:12px;bottom:max(12px,env(safe-area-inset-bottom));width:112px;height:112px;
   border:2px solid var(--paper);border-radius:10px;background:rgba(18,30,45,.7)}
 #mini{transition:opacity .35s}
-#wx{position:absolute;left:12px;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 130px);background:rgba(18,30,45,.7);border-radius:10px;padding:3px 10px;font-weight:700;font-size:13px;color:#DCE6FF}
+#wx{position:absolute;left:12px;top:calc(max(12px,env(safe-area-inset-top)) + 108px);background:rgba(18,30,45,.7);border-radius:10px;padding:3px 10px;font-weight:700;font-size:13px;color:#DCE6FF}
 #wx i{display:inline-block;font-style:normal}
 #hint{position:absolute;left:16px;right:16px;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 128px);text-align:center;
   background:rgba(230,211,163,.94);color:var(--ink);border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.5}
@@ -85,7 +86,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #goal .tick.got{background:var(--gold)}
 #purse{position:absolute;left:12px;top:calc(max(12px,env(safe-area-inset-top)) + 72px);
   background:rgba(18,30,45,.7);border-radius:10px;padding:4px 10px;font-weight:700;color:var(--gold)}
-#buff{position:absolute;left:12px;top:calc(max(12px,env(safe-area-inset-top)) + 108px);
+#buff{position:absolute;left:12px;top:calc(max(12px,env(safe-area-inset-top)) + 144px);
   background:rgba(230,211,163,.92);color:var(--ink);border-radius:10px;padding:4px 10px;font-weight:700}
 .coin{display:inline-block;width:.85em;height:.85em;border-radius:50%;background:var(--gold);
   box-shadow:inset 0 0 0 2px #B98A1F;vertical-align:-.08em;margin-right:.3em}
@@ -133,7 +134,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #ad .adbody{margin:26px 0;min-height:80px;display:grid;place-items:center;font-size:15px;line-height:1.5;border:2px dashed var(--ink);border-radius:6px;padding:10px}
 #ad button{display:block;width:100%;font:inherit;font-weight:700;font-size:17px;padding:13px;border:2px solid var(--ink);border-radius:6px;background:transparent;color:var(--ink);cursor:pointer}
 #ad button:disabled{opacity:.5;cursor:default}
-#banner{position:absolute;left:0;right:0;top:calc(max(12px,env(safe-area-inset-top)) + 150px);text-align:center;font-size:clamp(30px,9vw,46px);font-weight:900;color:#FFE066;text-shadow:0 3px 0 #B3262E,0 0 14px rgba(0,0,0,.5);pointer-events:none;animation:bn .35s ease-out}
+#banner{position:absolute;left:0;right:0;top:calc(max(12px,env(safe-area-inset-top)) + 190px);text-align:center;font-size:clamp(30px,9vw,46px);font-weight:900;color:#FFE066;text-shadow:0 3px 0 #B3262E,0 0 14px rgba(0,0,0,.5);pointer-events:none;animation:bn .35s ease-out}
 @keyframes bn{from{transform:scale(1.6);opacity:0}to{transform:scale(1);opacity:1}}
 #chest{position:fixed;inset:0;z-index:26;display:grid;place-items:center;background:rgba(18,30,45,.88);padding:20px}
 #chest .card{background:var(--paper);border:3px solid var(--ink);border-radius:6px;padding:20px 22px;width:min(320px,100%);text-align:center}
@@ -142,6 +143,8 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #cBox::after{content:"";position:absolute;left:50%;top:30%;width:16px;height:18px;margin-left:-8px;border:3px solid var(--ink);border-radius:4px;background:var(--paper)}
 #cBox.open{background:var(--paper);animation:bn .35s ease-out}
 #cBox.open::after{display:none}
+#cBox.open{display:grid;place-items:center;font-size:44px;color:var(--gold);text-shadow:0 2px 0 var(--ink)}
+#cBox .coin{width:46px;height:46px}
 #cText{min-height:48px;font-size:16px;line-height:1.5;margin:0 0 12px}
 #chest button{display:block;width:100%;font:inherit;font-weight:700;font-size:17px;padding:13px;border:2px solid var(--ink);border-radius:6px;background:var(--gold);color:var(--ink);cursor:pointer}
 #result button.gift{background:var(--gold);border-color:var(--ink)}
@@ -462,7 +465,7 @@ function spawn(p){
     if (!ok || G.players.some(q=>q!==p&&q.alive&&Math.hypot(q.x-x,q.y-y)<far)) continue;
     const R=2.6*U;
     for (let dy=-r;dy<=r;dy++) for (let dx=-r;dx<=r;dx++) if (dx*dx+dy*dy<=R*R) own[(gy+dy)*N+gx+dx]=p.id;
-    Object.assign(p,{x,y,cell:gy*N+gx,alive:true,trail:[],path:[],wind:0,shield:0,boost:0,hugT:0,side:1,sideWant:0,stuck:false,
+    Object.assign(p,{x,y,cell:gy*N+gx,alive:true,trail:[],path:[],wind:0,shield:0,inv:0,boost:0,hugT:0,side:1,sideWant:0,stuck:false,
       ang:-Math.PI/2,want:-Math.PI/2,head:-Math.PI/2,d:0,thinkT:0,a0:null,s:1,L1:6,L2:6,home:[x,y]});
     recount(); return true;
   }
@@ -603,7 +606,7 @@ function wxOn(p){
 function step(p,dt){
   if (p.id===0&&G.hist){ G.hist.push([p.x,p.y]); if (G.hist.length>200) G.hist.shift(); }
   const wx=wxOn(p), turn=(p.id?7:14)*dt*(wx==='storm'?.5:1); p.ang += Math.max(-turn,Math.min(turn,norm(p.want-p.ang)));
-  if (p.wind>0) p.wind-=dt; if (p.shield>0) p.shield-=dt;
+  if (p.wind>0) p.wind-=dt; if (p.shield>0) p.shield-=dt; if (p.inv>0) p.inv-=dt;
   const wxSpd=wx==='storm'?1.3:wx==='current'?1+.25*Math.cos(p.ang-G.cur):1;
   const dist=p.speed*Math.min(2.5,(1+p.boost)*(p.wind>0?1.5:1))*(1+.2*ab(p,'wind'))*wxSpd*dt, n=Math.ceil(dist*U/.45);
   let hug=false; const ox=p.x, oy=p.y;
@@ -651,7 +654,9 @@ function move(p,d){
     const t=trail[c];
     if (t>=0&&t!==p.id&&!(G.players[t].trail.lastIndexOf(c)>=G.players[t].trail.length-80&&Math.hypot(p.x-G.players[t].x,p.y-G.players[t].y)<4&&Math.cos(p.ang-G.players[t].ang)<-.5)){   // 마주 보고 부딪힌 것만 봐주고(정면 충돌), 옆이나 뒤에서 물길을 먼저 끊는 쪽이 이긴다
       const o=G.players[t];
-      if (o.shield>0) o.shield=0;            // 방어막이 물길을 한 번 지켜 준다
+      // 방어막이 물길을 한 번 지켜 준다: 막는 순간부터 2초 동안 무적(물길이 2칸 폭이라 한 번 가로지를 때 여러 칸이 판정되므로)
+      if (o.inv>0) {}
+      else if (o.shield>0){ o.shield=0; o.inv=2; popText(o.x,o.y-1.5,'방어!','#FFD34D',1.1); ring(o.x,o.y,'#FFD34D',4); if (!o.id){ sfx('item'); buzz(30); } }
       else kill(o,p);
       if (!p.alive) return hug;
     }
@@ -723,16 +728,18 @@ function think(b,dt){
   if ((b.kickT||0)>0){ b.kickT-=.1; b.want=b.kickA; }
 }
 
+const PC=matchMedia('(hover:hover) and (pointer:fine)').matches;   // 마우스를 쓰는 PC면 키보드 안내를 덧붙인다
+if (PC) $('hint').innerHTML+='<br>PC에서는 방향키나 WASD로도 움직여요.';
 const HINT=$('hint').innerHTML;
 const TUT=[
-  '① 화면 아무 곳이나 누르고 손가락을 밀어 보세요. 배가 그쪽으로 가요.',
+  '① 화면 아무 곳이나 누르고 손가락을 밀어 보세요. 배가 그쪽으로 가요.'+(PC?' (PC: 방향키나 WASD)':''),
   '② 좋아요! 이제 내 바다(내 색 영역) 밖으로 나가 보세요. 지나간 자리에 물길이 생겨요.',
   '③ 이제 내 바다로 돌아오세요. 물길로 둘러싼 곳이 모두 내 바다가 돼요!',
   '잘했어요! 물길이 끊기면 배가 가라앉으니 조심하세요. 해안에 붙어 가면 빨라져요. 바다의 '+GOAL*100+'%를 차지하면 정복!',
 ];
 function tutorial(dt){
   const me=G.players[0], s=G.tut, t=G.tutT+=dt; let next=false;   // 안내마다 읽을 시간(②는 2.5초)을 준다
-  if (s===0) next=joy&&Math.hypot(joy.kx,joy.ky)>12;
+  if (s===0) next=joy&&Math.hypot(joy.kx,joy.ky)>12 || held.size>0 || me.trail.length>12;   // 키보드로 움직였거나 이미 밖에 나가 있어도 넘어간다
   else if (s===1) next=t>2.5&&me.trail.length>12 || t>1.5&&G.tutCap;   // 바로 한 바퀴 돌아 먹어 버렸으면 ③을 건너뛴다
   else if (s===2) next=G.tutCap;
   else if (s===3) next=t>6;
@@ -743,7 +750,7 @@ function tutorial(dt){
 }
 function startRound(i,custom){
   pushS();
-  G.sea=i; G.custom=custom||null; G.best=0; G.t=0; G.coins=0; G.mile=0; G.items=[]; G.itemT=3; G.fx=[]; G.pop=[]; G.rings=[]; G.wasTop=false; G.beat=false; G.trophies=[]; G.killT=[]; G.hist=[]; G.x5=!G.custom&&x5Pending; x5Pending=false; $('banner').hidden=true;
+  G.sea=i; G.custom=custom||null; G.best=0; G.t=0; G.coins=0; G.mile=0; G.items=[]; G.itemT=3; G.fx=[]; G.pop=[]; G.rings=[]; G.wasTop=false; G.beat=false; G.trophies=[]; G.killT=[]; G.hist=[]; G.x5=!G.custom&&x5Pending; x5Pending=false; $('banner').hidden=true; G.banked=0; G.saveT=10;
   land=landMask(custom||SEAS[i]); buildLandF(); buildIslands(); own=new Int8Array(N*N).fill(-1); trail=new Int8Array(N*N).fill(-1);
   seaTotal=land.reduce((a,v)=>a+(v?0:1),0);
   G.players=CREW.map((c,id)=>({...c,id,kills:0,count:0,alive:false,trail:[],speed:id?5.7:6.3,hunter:id!==4,bold:.8+id*.12}));
@@ -751,6 +758,7 @@ function startRound(i,custom){
   for (const q of G.players){ q.kind=KINDS[q.id]||'normal'; if (q.kind==='careful'){ q.bold*=.7; q.hunter=false; } else if (q.kind==='aggressive') q.bold*=1.15; }
   Object.assign(G.players[0],SHIPS[save.ship],{name:'나'});
   for (const p of G.players) spawn(p);
+  recount(); G.start0=G.players[0].count/seaTotal;     // 시작 땅 크기(정복도 계산에서 뺀다)
   // 처음 하는 사람: 안내를 한 단계씩 보여 주고, 그 판에는 컴퓨터 배가 사냥하지 않는다
   G.tut=save.tut?-1:0; G.tutT=0; G.tutCap=false;
   if (G.tut===0){ G.players.forEach(p=>{ if (p.id) p.hunter=false; }); $('hint').textContent=TUT[0]; }
@@ -762,23 +770,26 @@ function startRound(i,custom){
   G.state='play'; hud();
   if (G.wx) showBanner({fog:'안개 낀 ',storm:'폭풍 속 ',current:'해류 흐르는 '}[G.wx]+SEAS[i].name);
 }
-function endRound(won){
+function endRound(won,quiet){
   G.state='over';
   const me=G.players[0], i=G.sea, cu=G.custom;
   const prevTop=cu?(save.seedTop[cu.seed]||0):(save.top[i]||0), newRecord=G.best>prevTop+.0005&&G.best>.02;
+  const wasDone=!cu&&save.prog[i]>=100;
   let note=[];
   if (cu) save.seedTop[cu.seed]=Math.max(prevTop,G.best);
-  else { save.top[i]=Math.max(prevTop,G.best); save.prog[i]=Math.min(100, won?100:save.prog[i]+Math.round(G.best*100/GOAL)*(G.x5?5:1)); if (G.x5&&!won) note.push('광고 보상: 이번 판 정복도 5배로 인정'); }
+  // 정복도: 시작 땅은 빼고 이번 판에 늘린 만큼만 쌓인다(가만히 침몰만 반복해서 채우지 못하게)
+  else { save.top[i]=Math.max(prevTop,G.best); save.prog[i]=Math.min(100, won?100:save.prog[i]+Math.round(Math.max(0,G.best-(G.start0||0))*100/GOAL)*(G.x5?5:1)); if (G.x5&&!won) note.push('광고 보상: 이번 판 정복도 5배로 인정'); }
   if (won){ G.coins+=30; sfx('win'); buzz([60,60,120]); }
   if (won&&cu&&cu.daily&&save.daily.done!==today()){ save.daily.done=today(); G.coins+=20; note.push('오늘의 바다 첫 완주 보너스 +20닢'); }
   save.stats.rounds++; if (won) save.stats.wins++; if (ADS.on) save.adRounds++;
-  save.coins+=G.coins;
+  save.coins+=G.coins-(G.banked||0); G.banked=G.coins;   // 판 도중 자동 저장으로 이미 넣은 금화는 빼고
   const got=checkAch(); got.forEach(a=>note.push('업적 달성: '+a.name+' ('+a.text+')'));
   store();
   const done=!cu&&save.prog[i]>=100, next=i+1<SEAS.length;
   if (newRecord){ note.unshift('새 최고 기록!'); sfx('coin'); }
-  else if (!cu&&!done) note.push('정복까지 '+(100-save.prog[i])+'%p 남았어요');
-  $('rTitle').textContent = cu ? (won?cu.name+' 완주!':'배가 가라앉았어요') : done ? SEAS[i].name+' 정복!' : '배가 가라앉았어요';
+  if (!cu&&!done) note.push('정복까지 '+(100-save.prog[i])+'%p 남았어요');
+  // 제목은 이번 판의 승패로 정한다(이미 정복한 바다에서 이기면 "다시 정복!")
+  $('rTitle').textContent = !won ? '배가 가라앉았어요' : cu ? cu.name+' 완주!' : SEAS[i].name+(wasDone?' 다시 정복!':' 정복!');
   $('rShare').textContent=(G.best*100).toFixed(1)+'%';
   $('rKills').textContent=me.kills+'척';
   $('rCoins').textContent=G.coins+'닢'; $('rCoins').classList.remove('pop'); void $('rCoins').offsetWidth; if (G.coins) $('rCoins').classList.add('pop');
@@ -788,10 +799,10 @@ function endRound(won){
   const main=$('rMain'), dbl=$('rDouble'), earned=G.coins;
   dbl.hidden=!(ADS.on&&earned>0); dbl.textContent='광고 보고 금화 두 배 (+'+earned+'닢)';
   dbl.onclick=()=>showAd(()=>{ save.coins+=earned; store(); $('rCoins').textContent=earned*2+'닢'; dbl.hidden=true; });
-  if (done&&next){ main.textContent='다음 바다로 출항'; main.onclick=adGate(()=>startRound(i+1)); }
+  if (won&&done&&next){ main.textContent='다음 바다로 출항'; main.onclick=adGate(()=>startRound(i+1)); }
   else { main.textContent='다시 출항'; main.onclick=adGate(()=>startRound(i,cu)); }
   $('hud').hidden=true; $('result').hidden=false; main.focus();
-  if (got.length) openChests(got.slice());
+  if (got.length&&!quiet) openChests(got.slice());   // 판 도중 나가기(quiet)면 상자는 열지 않는다(업적 알림은 checkAch가 띄움)
 }
 // 업적 확인: 새로 달성한 것만 돌려주고 보상을 준다
 function checkAch(){
@@ -803,8 +814,9 @@ function checkAch(){
 // 상자 열기: 새로 달성한 퀘스트마다 상자가 하나씩 열린다
 function openChests(list){
   const a=list.shift(); if (!a){ $('chest').hidden=true; return; }
-  $('chest').hidden=false; $('cTitle').textContent='퀘스트 완료: '+a.name; $('cBox').className=''; $('cText').textContent='열려면 탭하세요!'; $('cBtn').textContent='상자 열기';
-  $('cBtn').onclick=()=>{ $('cBox').className='open'; $('cText').textContent=a.text; $('cBtn').textContent='훌륭해요!'; sfx('win'); buzz(40); $('cBtn').onclick=()=>openChests(list); };
+  $('chest').hidden=false; $('cTitle').textContent='퀘스트 완료: '+a.name; $('cBox').className=''; $('cBox').innerHTML=''; $('cText').textContent='열려면 탭하세요!'; $('cBtn').textContent='상자 열기';
+  // 열린 상자 안에 보상 그림: 금화를 주면 금화, 물길·배가 열리면 별
+  $('cBtn').onclick=()=>{ $('cBox').className='open'; $('cBox').innerHTML=/금화/.test(a.text)?'<i class="coin"></i>':'<b>★</b>'; $('cText').textContent=a.text; $('cBtn').textContent='훌륭해요!'; sfx('win'); buzz(40); $('cBtn').onclick=()=>openChests(list); };
 }
 let toastT=0;
 function toast(msg){ const el=document.getElementById('toast')||Object.assign(document.body.appendChild(document.createElement('div')),{id:'toast'}); el.textContent=msg; el.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>el.hidden=true,2600); }
@@ -1089,6 +1101,7 @@ function frame(t){
         for (let t=0;t<40;t++){ const x=2+Math.random()*(WU-4), y=2+Math.random()*(WU-4);
           if (!isLand(x,y)){ G.items.push({x,y,type:Math.random()<.5?'wind':'shield'}); break; } } }
       if ((hudT+=dt)>.2){ hudT=0; hud(); }
+      if ((G.saveT-=dt)<=0){ G.saveT=10; bank(); }
       if (share>=GOAL) endRound(true);
     }
   }
@@ -1100,14 +1113,22 @@ requestAnimationFrame(frame);
 // 조종: 손가락을 댄 자리에 작은 조이스틱이 생긴다. 그 중심에서 손가락을 민 방향으로 배가 간다
 const JOY=34;
 let joy=null;
-cv.addEventListener('pointerdown',e=>{ if (G.state==='play') joy={x:e.clientX,y:e.clientY,kx:0,ky:0}; });
+// 처음 누른 손가락 하나만 따라간다(다른 손가락·손바닥이 닿아도 조이스틱이 옮겨가거나 풀리지 않게)
+cv.addEventListener('pointerdown',e=>{ if (G.state==='play'&&!joy) joy={id:e.pointerId,x:e.clientX,y:e.clientY,kx:0,ky:0}; });
 cv.addEventListener('pointermove',e=>{
-  if (!joy||G.state!=='play') return;
+  if (!joy||G.state!=='play'||e.pointerId!==joy.id) return;
   const dx=e.clientX-joy.x, dy=e.clientY-joy.y, d=Math.hypot(dx,dy), k=Math.min(1,JOY/(d||1));
   joy.kx=dx*k; joy.ky=dy*k;
   if (d>6) G.players[0].want=Math.atan2(dy,dx);
 });
-addEventListener('pointerup',()=>joy=null); addEventListener('pointercancel',()=>joy=null);
+const joyUp=e=>{ if (joy&&e.pointerId===joy.id) joy=null; };
+addEventListener('pointerup',joyUp); addEventListener('pointercancel',joyUp);
+// PC: 방향키·WASD로도 조종한다(누르고 있는 키들을 합친 방향)
+const KEYS={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0],W:[0,-1],S:[0,1],A:[-1,0],D:[1,0]}, held=new Set();
+function keySteer(){ let x=0,y=0; for (const k of held){ x+=KEYS[k][0]; y+=KEYS[k][1]; } if ((x||y)&&G.state==='play') G.players[0].want=Math.atan2(y,x); }
+addEventListener('keydown',e=>{ if (!KEYS[e.key]||e.target.tagName==='INPUT') return; e.preventDefault(); held.add(e.key); keySteer(); });
+addEventListener('keyup',e=>{ held.delete(e.key); keySteer(); });
+addEventListener('blur',()=>held.clear());
 function drawJoy(){
   if (!joy||G.state!=='play') return;
   ctx.fillStyle='rgba(230,211,163,.22)'; ctx.strokeStyle='rgba(230,211,163,.7)'; ctx.lineWidth=2;
@@ -1160,14 +1181,17 @@ $('wipe').onclick=()=>{
 $('closeSet').onclick=$('backSet').onclick=()=>{ $('settings').hidden=true; showChart(); };
 $('closeDock').onclick=$('backDock').onclick=()=>{ $('dock').hidden=true; showChart(); };
 // 멈춤: 판 중에 잠깐 멈추거나 해도로 나간다(나가면 그때까지의 기록은 저장). 화면이 가려지면 자동으로 멈춘다
-function pauseGame(){ if (G.state!=='play') return; G.state='pause'; joy=null; $('pause').hidden=false; }
+// 판 도중 저장: 지금까지 번 금화와 격침·섬 기록을 저장한다(앱이 갑자기 꺼져도 남게). 10초마다, 그리고 멈출 때
+function bank(){ save.coins+=G.coins-(G.banked||0); G.banked=G.coins; store(); }
+function pauseGame(){ if (G.state!=='play') return; G.state='pause'; joy=null; $('pause').hidden=false; bank(); }
 $('pauseBtn').onclick=pauseGame;
 $('pResume').onclick=()=>{ $('pause').hidden=true; if (G.state==='pause') G.state='play'; };
-$('pExit').onclick=()=>{ $('pause').hidden=true; G.state='play'; endRound(false); showChart(); };
-addEventListener('popstate',()=>{            // 폰의 뒤로 버튼: 열린 화면 닫기 → 판 중이면 멈춤
+$('pExit').onclick=()=>{ $('pause').hidden=true; G.state='play'; endRound(false,true); showChart(); };
+addEventListener('popstate',()=>{            // 폰의 뒤로 버튼: 열린 화면 닫기 → 판 중이면 멈춤 → 결과 화면이면 해도로
   if (!$('dock').hidden){ $('dock').hidden=true; showChart(); }
   else if (!$('settings').hidden){ $('settings').hidden=true; showChart(); }
   else if (G.state==='play') pauseGame();
+  else if (G.state==='over'){ $('chest').hidden=true; showChart(); }
 });
 document.addEventListener('visibilitychange',()=>{ if (document.hidden) pauseGame(); });
 // 시작 화면의 배 전시대: 내 배가 물길을 끌며 천천히 떠 있다
@@ -1210,7 +1234,7 @@ $('extras').onclick=e=>{
     const c=Math.min(60,10+5*(d.streak-1)); save.coins+=c; checkAch(); store(); toast('출석 '+d.streak+'일째! 금화 '+c+'닢'); sfx('coin'); showChart();
   } else if (b.id==='x5'){ showAd(()=>{ x5Pending=true; showChart(); toast('다음 판에 먹은 만큼의 5배를 정복도로 인정해요'); });
   } else if (b.id==='goDaily') startRound(3,Object.assign(genSea(dailySeed(),'오늘의 바다 #'+dailySeed()),{daily:true}));
-  else if (b.id==='goSeed'){ const n=Math.max(1,Math.min(9999,Math.floor(+$('seedIn').value)||0)); if (!+$('seedIn').value){ toast('1부터 9999 사이 번호를 넣어 주세요'); return; } startRound(4,genSea(n,n+'번 바다')); }
+  else if (b.id==='goSeed'){ const n=Math.max(1,Math.min(9999,Math.floor(+$('seedIn').value)||0)); const v=+$('seedIn').value; if (!(v>=1&&v<=9999)){ toast('1부터 9999 사이 번호를 넣어 주세요'); return; } startRound(4,genSea(n,n+'번 바다')); }
 };
 // 조선소: 물길 꾸미기와 업적
 function showTrails(){
