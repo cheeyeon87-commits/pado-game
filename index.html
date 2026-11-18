@@ -583,6 +583,8 @@ function capture(p){
   for (const o of G.players) if (o!==p&&o.alive&&o.count>0&&o.count<before[o.id]) prune(o);
   recount();
   if (p.id===0){ const g=(p.count-before[0])/seaTotal*100; if (g>=.1){ const big=1+Math.min(1,g/8); popText(p.x,p.y-1.5,'+'+g.toFixed(1)+'%',g>=4?'#FFD34D':'#FFF3B0',big); if (g>=1) ring(p.x,p.y,'#FFF3B0',Math.min(9,2+g*.9)); if (g>=1.5) popText(p.x,p.y-3.2,PRAISE[Math.random()*PRAISE.length|0],'#FFE066',1.15); } sfx('capture'); buzz(20); G.tutCap=true; }
+  // 남의 영토를 다 먹었으면 그 배는 가라앉는다. 눈에 안 보일 만큼 작은 조각(9칸 이하, 12칸부터는 작은 점으로 보임)만 남았을 때도 다 먹은 것으로 본다
+  for (const o of G.players) if (o.alive&&o!==p&&(o.count===0||(o.count<before[o.id]&&o.count<=9))) kill(o,p);
   for (const o of G.players) if (o.alive&&o.count===0) kill(o,p);
 }
 const norm = a => Math.atan2(Math.sin(a),Math.cos(a));
