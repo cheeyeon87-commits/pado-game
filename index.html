@@ -75,6 +75,9 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #board li.me{background:rgba(230,211,163,.92);color:var(--ink)}
 #mini{position:absolute;inset:auto;left:12px;bottom:max(12px,env(safe-area-inset-bottom));width:112px;height:112px;
   border:2px solid var(--paper);border-radius:10px;background:rgba(18,30,45,.7)}
+#mini{transition:opacity .35s}
+#wx{position:absolute;left:12px;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 130px);background:rgba(18,30,45,.7);border-radius:10px;padding:3px 10px;font-weight:700;font-size:13px;color:#DCE6FF}
+#wx i{display:inline-block;font-style:normal}
 #hint{position:absolute;left:16px;right:16px;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 128px);text-align:center;
   background:rgba(230,211,163,.94);color:var(--ink);border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.5}
 
@@ -168,6 +171,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
   <button id="pauseBtn" aria-label="멈춤">❚❚</button>
   <ol id="board"></ol>
   <canvas id="mini" width="224" height="224"></canvas>
+  <div id="wx" hidden></div>
   <div id="hint">화면 아무 곳이나 누르면 조이스틱이 생겨요. 가고 싶은 쪽으로 밀어요.<br>내 바다 밖으로 나갔다가 돌아오면, 물길로 둘러싼 곳이 내 바다가 돼요.<br>해안에 붙어서 가면 점점 빨라져요.</div>
 </div>
 
@@ -246,12 +250,14 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 // WU: 바다 크기(단위). U: 단위 하나를 몇 칸으로 쪼개는지(클수록 곡선이 곱다). 배 위치와 속도는 단위로 센다
 const WU = 84, U = 2, N = WU*U, GOAL = 0.5;
 // 바다 모양: [중심x, 중심y, 가로반지름, 세로반지름] 타원. sea는 바다, isl은 섬/육지 (단순화한 모양)
+// wx: 바다의 날씨. current=해류(흐름 방향 cur), fog=안개(미니맵이 보였다 안 보였다), storm=폭풍(빠르지만 조작이 둔함). 자기 영토 위에서는 적용하지 않는다
+const WX_NAME={current:'해류',fog:'안개',storm:'폭풍'};
 const SEAS = [
-  {name:'카리브해', sea:[[.5,.52,.47,.36],[.24,.34,.22,.2]],
+  {name:'카리브해', wx:'current', cur:Math.PI*.15, sea:[[.5,.52,.47,.36],[.24,.34,.22,.2]],
    isl:[[.42,.3,.14,.028],[.63,.37,.07,.035],[.44,.43,.04,.016],[.8,.42,.012,.02],[.84,.5,.012,.02],[.85,.6,.014,.022],[.82,.7,.016,.02]]},
-  {name:'지중해', sea:[[.28,.5,.26,.2],[.68,.54,.3,.22],[.5,.46,.22,.13]],
+  {name:'지중해', wx:'fog', sea:[[.28,.5,.26,.2],[.68,.54,.3,.22],[.5,.46,.22,.13]],
    isl:[[.45,.36,.035,.15],[.5,.57,.045,.025],[.36,.44,.018,.04],[.72,.64,.05,.015],[.88,.57,.03,.015]]},
-  {name:'인도양', sea:[[.5,.52,.46,.44]],
+  {name:'인도양', wx:'storm', sea:[[.5,.52,.46,.44]],
    isl:[[.55,.08,.1,.24],[.22,.68,.04,.1],[.61,.36,.02,.03],[.78,.3,.02,.06],[.4,.8,.015,.015]]},
 ];
 const CREW = [
@@ -588,11 +594,18 @@ function capture(p){
   for (const o of G.players) if (o.alive&&o.count===0) kill(o,p);
 }
 const norm = a => Math.atan2(Math.sin(a),Math.cos(a));
+// 이 배에 지금 적용되는 날씨: 폭풍·해류는 자기 영토 밖(바다 위)에서만. 안개는 미니맵에만 영향이라 배에는 적용 안 함
+function wxOn(p){
+  if (G.wx!=='storm'&&G.wx!=='current') return null;
+  const gx=Math.min(N-1,Math.max(0,Math.round(p.x*U)-1)), gy=Math.min(N-1,Math.max(0,Math.round(p.y*U)-1));
+  return own[gy*N+gx]===p.id?null:G.wx;
+}
 function step(p,dt){
   if (p.id===0&&G.hist){ G.hist.push([p.x,p.y]); if (G.hist.length>200) G.hist.shift(); }
-  const turn=(p.id?7:14)*dt; p.ang += Math.max(-turn,Math.min(turn,norm(p.want-p.ang)));
+  const wx=wxOn(p), turn=(p.id?7:14)*dt*(wx==='storm'?.5:1); p.ang += Math.max(-turn,Math.min(turn,norm(p.want-p.ang)));
   if (p.wind>0) p.wind-=dt; if (p.shield>0) p.shield-=dt;
-  const dist=p.speed*Math.min(2.5,(1+p.boost)*(p.wind>0?1.5:1))*(1+.2*ab(p,'wind'))*dt, n=Math.ceil(dist*U/.45);
+  const wxSpd=wx==='storm'?1.3:wx==='current'?1+.25*Math.cos(p.ang-G.cur):1;
+  const dist=p.speed*Math.min(2.5,(1+p.boost)*(p.wind>0?1.5:1))*(1+.2*ab(p,'wind'))*wxSpd*dt, n=Math.ceil(dist*U/.45);
   let hug=false; const ox=p.x, oy=p.y;
   for (let k=0;k<n&&p.alive&&G.state==='play';k++) if (move(p,dist/n)) hug=true;
   // 해안 타기: 해안에 붙어 나아가는 동안 점점 빨라져 3초 뒤 2배. 떨어지거나 구석에 막히면 금방 원래 속도로
@@ -743,7 +756,11 @@ function startRound(i,custom){
   if (G.tut===0){ G.players.forEach(p=>{ if (p.id) p.hunter=false; }); $('hint').textContent=TUT[0]; }
   else $('hint').innerHTML=HINT;
   $('chart').hidden=true; $('result').hidden=true; $('hud').hidden=false; $('hint').hidden=false;
+  // 바다 날씨: 번호 바다·오늘의 바다(custom)에는 없음
+  const sw=custom?null:SEAS[i]; G.wx=sw&&sw.wx||null; G.cur=sw&&sw.cur||0; G.fogOn=false; G.fogT=3+Math.random()*3; $('mini').style.opacity=1;
+  const wb=$('wx'); wb.hidden=!G.wx; wb.innerHTML=G.wx?WX_NAME[G.wx]+(G.wx==='current'?' <i style="transform:rotate('+G.cur+'rad)">➤</i>':''):'';
   G.state='play'; hud();
+  if (G.wx) showBanner({fog:'안개 낀 ',storm:'폭풍 속 ',current:'해류 흐르는 '}[G.wx]+SEAS[i].name);
 }
 function endRound(won){
   G.state='over';
@@ -1025,7 +1042,26 @@ function draw(){
     drawShip(me,camx,camy);
   }
   drawFx(camx,camy);
+  drawWx();
   drawJoy();
+}
+// 날씨 그림: 해류=흐름 방향으로 움직이는 화살표 무늬, 폭풍=어두운 막과 비줄기
+function drawWx(){
+  if (G.state!=='play'&&G.state!=='over') return;
+  if (G.wx==='current'){
+    const gap=Math.max(110,W/4), a=G.cur, dx=Math.cos(a), dy=Math.sin(a), off=(G.t*40)%gap;
+    ctx.save(); ctx.strokeStyle='rgba(255,255,255,.16)'; ctx.lineWidth=3; ctx.lineCap='round'; ctx.lineJoin='round';
+    for (let gx=-1;gx<W/gap+1;gx++) for (let gy=-1;gy<H/gap+1;gy++){
+      const x=gx*gap+(gy%2?gap/2:0)+dx*off, y=gy*gap+dy*off, s=14;
+      ctx.beginPath(); ctx.moveTo(x-dx*s-dy*s*.7,y-dy*s+dx*s*.7); ctx.lineTo(x,y); ctx.lineTo(x-dx*s+dy*s*.7,y-dy*s-dx*s*.7); ctx.stroke(); }
+    ctx.restore();
+  } else if (G.wx==='storm'){
+    ctx.fillStyle='rgba(10,18,35,.22)'; ctx.fillRect(0,0,W,H);
+    ctx.save(); ctx.strokeStyle='rgba(220,230,255,.28)'; ctx.lineWidth=2;
+    for (let k=0;k<60;k++){ const r1=(k*7919%1000)/1000, r2=(k*104729%1000)/1000, y=((r2*H+G.t*900)%(H+60))-30, x=((r1*W+G.t*250)%(W+60))-30;
+      ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x-8,y+24); ctx.stroke(); }
+    ctx.restore();
+  }
 }
 
 let last=0, hudT=0;
@@ -1033,6 +1069,10 @@ function frame(t){
   const dt=Math.min(.05,(t-last)/1000||0); last=t;
   if (G.state==='play'){
     G.t+=dt;
+    if (G.wx==='fog'){                      // 미니맵이 3~6초 보이고 2~4초 안 보임. 사라지기 직전 0.5초는 흐려져 알려 줌
+      if ((G.fogT-=dt)<=0){ G.fogOn=!G.fogOn; G.fogT=G.fogOn?2+Math.random()*2:3+Math.random()*3; }
+      $('mini').style.opacity=G.fogOn?0:G.fogT<.5?.4:1;
+    }
     if (G.tut>=0) tutorial(dt); else if (G.t>5) $('hint').hidden=true;
     updateFx(dt);
     for (const p of G.players){
