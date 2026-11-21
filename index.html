@@ -74,10 +74,10 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #board li::before{content:'';position:absolute;left:0;top:0;bottom:0;width:var(--w,0%);background:var(--c);opacity:.3;transition:width .3s}
 #board li span{position:relative}
 #board li.me{background:rgba(230,211,163,.92);color:var(--ink)}
-#mini{position:absolute;inset:auto;left:12px;bottom:max(12px,env(safe-area-inset-bottom));width:112px;height:112px;
+#mini{position:absolute;inset:auto;left:12px;bottom:max(12px,env(safe-area-inset-bottom));width:clamp(96px,28vw,150px);height:auto;aspect-ratio:1;
   border:2px solid var(--paper);border-radius:10px;background:rgba(18,30,45,.7)}
 #mini{transition:opacity .35s}
-#wx{position:absolute;left:12px;top:calc(max(12px,env(safe-area-inset-top)) + 108px);background:rgba(18,30,45,.7);border-radius:10px;padding:3px 10px;font-weight:700;font-size:13px;color:#DCE6FF}
+#wx,#seaTag{position:absolute;left:12px;top:calc(max(12px,env(safe-area-inset-top)) + 108px);background:rgba(18,30,45,.7);border-radius:10px;padding:3px 10px;font-weight:700;font-size:13px;color:#DCE6FF}
 #wx i{display:inline-block;font-style:normal}
 #hint{position:absolute;left:16px;right:16px;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 128px);text-align:center;
   background:rgba(230,211,163,.94);color:var(--ink);border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.5}
@@ -153,6 +153,16 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #result{position:fixed;inset:0;display:grid;place-items:center;background:rgba(18,30,45,.6);padding:20px}
 #result .card{background:var(--paper);border:3px solid var(--ink);border-radius:6px;padding:24px 22px;width:min(340px,100%);
   text-align:center;box-shadow:6px 8px 0 rgba(0,0,0,.35)}
+#result .card.win{background:#F4E2A6;border-color:#B8860B}
+#result .card.lose{background:#C9CDD2;border-color:#4A5560}
+#rWhy{margin-top:8px;font-weight:700;color:var(--blood);min-height:0}
+#result .card.lose #rWhy{color:#3A4550}
+#rBar{position:relative;height:12px;border-radius:6px;background:rgba(34,48,63,.25);overflow:hidden;margin:2px 0 6px}
+#rBar i{position:absolute;left:0;top:0;bottom:0;display:block}
+#rBarOld{background:var(--ink)}
+#rBarNew{background:var(--gold)}
+#rNext{font-size:14px;text-align:center;margin-top:10px}
+#pInfo{font-weight:700;margin:6px 0 4px}
 #result h2{font-size:56px;line-height:.9}
 #result dl{display:grid;grid-template-columns:1fr auto;gap:6px 12px;text-align:left;margin:18px 0;font-size:16px}
 #result dd{font-weight:700;text-align:right}
@@ -175,6 +185,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
   <ol id="board"></ol>
   <canvas id="mini" width="224" height="224"></canvas>
   <div id="wx" hidden></div>
+  <div id="seaTag" hidden></div>
   <div id="hint">화면 아무 곳이나 누르면 조이스틱이 생겨요. 가고 싶은 쪽으로 밀어요.<br>내 바다 밖으로 나갔다가 돌아오면, 물길로 둘러싼 곳이 내 바다가 돼요.<br>해안에 붙어서 가면 점점 빨라져요.</div>
 </div>
 
@@ -211,7 +222,10 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 <div id="pause" hidden>
   <div class="card">
     <h2 class="brush">잠깐 멈춤</h2>
+    <p id="pInfo"></p>
     <button class="main" id="pResume">계속하기</button>
+    <button id="pRestart">다시 시작</button>
+    <button id="pSound">소리 끄기</button>
     <button id="pExit">해도로 나가기</button>
   </div>
 </div>
@@ -236,12 +250,15 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 <div id="result" hidden>
   <div class="card">
     <h2 class="brush" id="rTitle"></h2>
+    <p id="rWhy"></p>
     <dl>
       <dt>이번 항해에서 차지한 바다</dt><dd id="rShare"></dd>
       <dt>가라앉힌 배</dt><dd id="rKills"></dd>
       <dt>얻은 금화</dt><dd id="rCoins"></dd>
       <dt id="rSeaName"></dt><dd id="rProg"></dd>
     </dl>
+    <div id="rBar" hidden><i id="rBarOld"></i><i id="rBarNew"></i></div>
+    <p id="rNext"></p>
     <p id="rNote"></p>
     <button class="gift" id="rDouble" hidden></button>
     <button class="main" id="rMain"></button>
@@ -254,6 +271,8 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 const WU = 84, U = 2, N = WU*U, GOAL = 0.5;
 // 바다 모양: [중심x, 중심y, 가로반지름, 세로반지름] 타원. sea는 바다, isl은 섬/육지 (단순화한 모양)
 // wx: 바다의 날씨. current=해류(흐름 방향 cur), fog=안개(미니맵이 보였다 안 보였다), storm=폭풍(빠르지만 조작이 둔함). 자기 영토 위에서는 적용하지 않는다
+const WX_RULE={current:'해류: 켜졌다 꺼졌다 해요. 흐르는 쪽으로 가면 빨라지고 거슬러 가면 느려져요',fog:'안개: 미니맵이 가끔 사라져요',storm:'폭풍: 켜졌다 꺼졌다 해요. 배가 빨라지지만 방향이 둔해져요'};
+const WX_ICON={current:'🌊',fog:'🌫️',storm:'⛈️'};
 const WX_NAME={current:'해류',fog:'안개',storm:'폭풍'};
 const SEAS = [
   {name:'카리브해', wx:'current', cur:Math.PI*.15, sea:[[.5,.52,.47,.36],[.24,.34,.22,.2]],
@@ -320,7 +339,7 @@ let save;
 try { save = JSON.parse(localStorage.getItem('pado-yeongto')); } catch(e){}
 if (!save) save = {prog:[0,0,0]};
 function fillSave(){ save.coins ??= 0; save.ships ??= [0]; save.ship ??= 0; save.set ??= {sfx:1, bgm:1, vib:1}; save.tut ??= 0; save.top ??= [0,0,0];
-  save.trails ??= [0]; save.trail ??= 0; save.seedTop ??= {}; save.daily ??= {last:'',streak:0,done:''}; save.stats ??= {kills:0,wins:0,isles:0,rounds:0}; save.ach ??= []; save.adRounds ??= 0; }
+  save.trails ??= [0]; save.trail ??= 0; save.seedTop ??= {}; save.daily ??= {last:'',streak:0,done:''}; save.stats ??= {kills:0,wins:0,isles:0,rounds:0}; save.ach ??= []; save.adRounds ??= 0; save.wxSeen ??= {}; }
 fillSave();
 // 광고: 광고 회사를 연결하기 전까지 꺼 둔다(켜면 시험용 광고 자리가 나온다). 판 중에는 절대 안 나오고, 판 끝 화면에서만:
 // ① 5판마다 짧은 광고 1개(5초 뒤 닫기)  ② 사용자가 직접 누르면 금화 두 배
@@ -526,9 +545,9 @@ function islandTick(p,dt){
   if (y){ if ((p.yardT=(p.yardT??20)-dt)<=0){ p.yardT=20/y; if (p.shield<5) p.shield=5; } } else p.yardT=20;   // 조선소 섬: 20초마다 방어막(1위는 40초)
   if (g){ if ((p.goldT=(p.goldT??3)-dt)<=0){ p.goldT=3/g; if (p.id===0) G.coins++; } } else p.goldT=3;            // 보물섬: 3초마다 금화 1닢(1위는 6초)
 }
-function kill(p, by){
+function kill(p, by, why){
   if (!p.alive) return;
-  p.alive=false; p.respawn=3;
+  p.alive=false; p.respawn=3; p.why=why?{why,by:by&&by.name}:null;   // 죽은 이유: 'trail'=물길이 끊김, 'land'=영토를 다 잃음
   burst(p.x,p.y,p.color,p.id?26:34,7);
   if (by&&by.id===0&&p.id){ popText(p.x,p.y-1,p.name+' 격침!','#E9B63A'); sfx('kill'); buzz(40); save.stats.kills++;
     G.trophies.push(p.color); if (G.trophies.length>14) G.trophies.shift();
@@ -593,15 +612,24 @@ function capture(p){
   recount();
   if (p.id===0){ const g=(p.count-before[0])/seaTotal*100; if (g>=.1){ const big=1+Math.min(1,g/8); popText(p.x,p.y-1.5,'+'+g.toFixed(1)+'%',g>=4?'#FFD34D':'#FFF3B0',big); if (g>=1) ring(p.x,p.y,'#FFF3B0',Math.min(9,2+g*.9)); if (g>=1.5) popText(p.x,p.y-3.2,PRAISE[Math.random()*PRAISE.length|0],'#FFE066',1.15); } sfx('capture'); buzz(20); G.tutCap=true; }
   // 남의 영토를 다 먹었으면 그 배는 가라앉는다. 눈에 안 보일 만큼 작은 조각(9칸 이하, 12칸부터는 작은 점으로 보임)만 남았을 때도 다 먹은 것으로 본다
-  for (const o of G.players) if (o.alive&&o!==p&&(o.count===0||(o.count<before[o.id]&&o.count<=9))) kill(o,p);
-  for (const o of G.players) if (o.alive&&o.count===0) kill(o,p);
+  for (const o of G.players) if (o.alive&&o!==p&&(o.count===0||(o.count<before[o.id]&&o.count<=9))) kill(o,p,'land');
+  for (const o of G.players) if (o.alive&&o.count===0) kill(o,p,'land');
 }
 const norm = a => Math.atan2(Math.sin(a),Math.cos(a));
 // 이 배에 지금 적용되는 날씨: 폭풍·해류는 자기 영토 밖(바다 위)에서만. 안개는 미니맵에만 영향이라 배에는 적용 안 함
 function wxOn(p){
-  if (G.wx!=='storm'&&G.wx!=='current') return null;
+  if (!G.wxAct||(G.wx!=='storm'&&G.wx!=='current')) return null;
   const gx=Math.min(N-1,Math.max(0,Math.round(p.x*U)-1)), gy=Math.min(N-1,Math.max(0,Math.round(p.y*U)-1));
   return own[gy*N+gx]===p.id?null:G.wx;
+}
+// 날씨 표시: 폭풍·해류는 켜짐=밝게, 꺼짐=흐리게, 켜지기 2초 전="곧 …!" 경고
+function wxBadge(){
+  const wb=$('wx'); wb.hidden=!G.wx; if (!G.wx){ wb.innerHTML=''; return; }
+  const arrow=G.wx==='current'?' <i style="transform:rotate('+G.cur+'rad)">➤</i>':'';
+  const warn=G.wx!=='fog'&&!G.wxAct&&G.wxT<2;
+  wb.innerHTML=(warn?'곧 ':'')+WX_NAME[G.wx]+(warn?'!':'')+arrow;
+  wb.style.opacity=G.wx==='fog'||G.wxAct||warn?1:.55; wb.style.color=warn?'#FFB347':'';
+  G.wxWarn=warn;
 }
 function step(p,dt){
   if (p.id===0&&G.hist){ G.hist.push([p.x,p.y]); if (G.hist.length>200) G.hist.shift(); }
@@ -658,7 +686,7 @@ function move(p,d){
       // 방어막이 물길을 한 번 지켜 준다: 막는 순간부터 2초 동안 무적(물길이 2칸 폭이라 한 번 가로지를 때 여러 칸이 판정되므로)
       if (o.inv>0) {}
       else if (o.shield>0){ o.shield=0; o.inv=2; popText(o.x,o.y-1.5,'방어!','#FFD34D',1.1); ring(o.x,o.y,'#FFD34D',4); if (!o.id){ sfx('item'); buzz(30); } }
-      else kill(o,p);
+      else kill(o,p,'trail');
       if (!p.alive) return hug;
     }
     if (own[c]===p.id){ if (p.trail.length) capture(p); return hug; }
@@ -767,19 +795,23 @@ function startRound(i,custom){
   $('chart').hidden=true; $('result').hidden=true; $('hud').hidden=false; $('hint').hidden=false;
   // 바다 날씨: 번호 바다·오늘의 바다(custom)에는 없음
   const sw=custom?null:SEAS[i]; G.wx=sw&&sw.wx||null; G.cur=sw&&sw.cur||0; G.fogOn=false; G.fogT=3+Math.random()*3; $('mini').style.opacity=1;
-  const wb=$('wx'); wb.hidden=!G.wx; wb.innerHTML=G.wx?WX_NAME[G.wx]+(G.wx==='current'?' <i style="transform:rotate('+G.cur+'rad)">➤</i>':''):'';
+  G.wxAct=false; G.wxT=10; G.wxLv=0; wxBadge();      // 폭풍·해류는 꺼진 채 시작(10초), 이후 켜짐 8~15초 / 꺼짐 6~12초 반복
+  const st=$('seaTag'); st.hidden=!custom; st.textContent=custom?custom.name:'';      // 오늘의 바다·번호 바다는 이름(번호)을 화면에 계속 보여 준다
+  G.danger=[]; G.dangerBuzz=-9;
   G.state='play'; hud();
-  if (G.wx) showBanner({fog:'안개 낀 ',storm:'폭풍 속 ',current:'해류 흐르는 '}[G.wx]+SEAS[i].name);
+  if (G.wx&&!(save.wxSeen&&save.wxSeen[G.wx])){ (save.wxSeen=save.wxSeen||{})[G.wx]=1; store(); toast(WX_RULE[G.wx]); }   // 날씨 규칙은 처음 만났을 때 한 번만 알려 준다
+  if (G.wx) showBanner({fog:'안개 낀 ',storm:'폭풍이 오가는 ',current:'해류가 오가는 '}[G.wx]+SEAS[i].name);
 }
 function endRound(won,quiet){
   G.state='over';
   const me=G.players[0], i=G.sea, cu=G.custom;
   const prevTop=cu?(save.seedTop[cu.seed]||0):(save.top[i]||0), newRecord=G.best>prevTop+.0005&&G.best>.02;
-  const wasDone=!cu&&save.prog[i]>=100;
+  const wasDone=!cu&&save.prog[i]>=100, prog0=cu?0:save.prog[i];
+  const gain=Math.round(Math.max(0,G.best-(G.start0||0))*100/GOAL)*(G.x5?5:1);
   let note=[];
   if (cu) save.seedTop[cu.seed]=Math.max(prevTop,G.best);
   // 정복도: 시작 땅은 빼고 이번 판에 늘린 만큼만 쌓인다(가만히 침몰만 반복해서 채우지 못하게)
-  else { save.top[i]=Math.max(prevTop,G.best); save.prog[i]=Math.min(100, won?100:save.prog[i]+Math.round(Math.max(0,G.best-(G.start0||0))*100/GOAL)*(G.x5?5:1)); if (G.x5&&!won) note.push('광고 보상: 이번 판 정복도 5배로 인정'); }
+  else { save.top[i]=Math.max(prevTop,G.best); save.prog[i]=Math.min(100, won?100:save.prog[i]+gain); if (G.x5&&!won) note.push('광고 보상: 이번 판 정복도 5배로 인정'); }
   if (won){ G.coins+=30; sfx('win'); buzz([60,60,120]); }
   if (won&&cu&&cu.daily&&save.daily.done!==today()){ save.daily.done=today(); G.coins+=20; note.push('오늘의 바다 첫 완주 보너스 +20닢'); }
   save.stats.rounds++; if (won) save.stats.wins++; if (ADS.on) save.adRounds++;
@@ -797,6 +829,15 @@ function endRound(won,quiet){
   $('rSeaName').textContent=cu?cu.name+' 최고 기록':SEAS[i].name+' 정복도';
   $('rProg').textContent=cu?(save.seedTop[cu.seed]*100).toFixed(1)+'%':save.prog[i]+'%';
   $('rNote').innerHTML=note.join('<br>');
+  // 승리는 금색 카드, 패배는 잿빛 카드. 죽은 이유와 "다음 목표"(정복도 게이지와 남은 판 수)를 보여 준다
+  const card=$('result').querySelector('.card'); card.classList.toggle('win',!!won); card.classList.toggle('lose',!won);
+  const w=!won&&!me.alive&&me.why; $('rWhy').textContent=w?(w.by?w.by+'에게 ':'')+(w.why==='trail'?'물길이 끊겼어요':'영토를 모두 빼앗겼어요'):'';
+  let nx='';
+  if (cu) nx=save.seedTop[cu.seed]>0?'내 최고 기록 '+(save.seedTop[cu.seed]*100).toFixed(1)+'% — 넘어서 보세요':'';
+  else if (!done){ const R=100-save.prog[i]; nx=(gain>0?'이번처럼 하면 '+Math.ceil(R/gain)+'판 더 하면 정복!':'시작 땅보다 더 넓혀야 정복도가 올라요.')+(next?' 정복하면 다음 바다가 열려요 ('+SEAS[i+1].name+').':''); }
+  else nx=next?'다음 목표: '+SEAS[i+1].name+'에 출항해 보세요':'모든 바다를 정복했어요!';
+  $('rNext').textContent=nx;
+  $('rBar').hidden=!!cu; if (!cu){ $('rBarOld').style.width=prog0+'%'; $('rBarNew').style.left=prog0+'%'; $('rBarNew').style.width=(save.prog[i]-prog0)+'%'; }
   const main=$('rMain'), dbl=$('rDouble'), earned=G.coins;
   dbl.hidden=!(ADS.on&&earned>0); dbl.textContent='광고 보고 금화 두 배 (+'+earned+'닢)';
   dbl.onclick=()=>showAd(()=>{ save.coins+=earned; store(); $('rCoins').textContent=earned*2+'닢'; dbl.hidden=true; });
@@ -851,6 +892,7 @@ function drawMini(){                                // 칸 하나가 점 하나�
     mctx.fillStyle=me?'#fff':p.color; mctx.fill();
     mctx.lineWidth=me?3:1.5; mctx.strokeStyle=me?'#22303F':'#fff'; mctx.stroke(); }
 }
+const DANGER_R=5;
 function hud(){
   drawMini();
   const me=G.players[0], share=me.count/seaTotal;
@@ -878,6 +920,15 @@ function hud(){
     li.style.setProperty('--w',(lead.count?p.count/lead.count*100:0)+'%');
     li.children[0].textContent=(p===lead&&(!rank[1]||lead.count>rank[1].count)?'👑 ':rank.indexOf(p)+1+'. ')+p.name;   // 왕관은 혼자 앞설 때만
     li.children[1].textContent=(sh*100).toFixed(1)+'%'; });
+  // 물길 위험: 내 물길(지나온 길)에서 DANGER_R 안으로 들어온 적 배. 튜토리얼 중에는 끈다
+  const dg=[];
+  if (G.tut<0&&me.alive&&me.path.length>2&&G.state==='play') for (const o of G.players){
+    if (!o.alive||o===me) continue;
+    let bd=1e9; for (let k=0;k<me.path.length;k+=2){ const q=me.path[k], d=Math.hypot(q[0]-o.x,q[1]-o.y); if (d<bd) bd=d; }
+    if (bd<DANGER_R) dg.push({x:o.x,y:o.y,d:bd});
+  }
+  if (dg.length&&!G.danger.length&&G.t-G.dangerBuzz>3){ G.dangerBuzz=G.t; buzz(25); }
+  G.danger=dg;
   const top=me.alive&&lead===me&&(!rank[1]||me.count>rank[1].count);
   if (top&&!G.wasTop&&G.state==='play') popText(me.x,me.y-1.5,'1위!','#E9B63A');
   G.wasTop=top;
@@ -904,7 +955,9 @@ function drawShip(p,camx,camy){
   ctx.restore();
   ctx.font='700 12px "Gowun Batang",serif'; ctx.textAlign='center';
   ctx.lineWidth=3; ctx.strokeStyle='rgba(18,30,45,.8)'; ctx.fillStyle='#fff';
-  ctx.strokeText(p.name,x,y-cs*1.3); ctx.fillText(p.name,x,y-cs*1.3);
+  const near=p.id===0?1:Math.max(0,Math.min(1,(16-Math.hypot(p.x-G.players[0].x,p.y-G.players[0].y))/5));   // 이름표: 멀리 있는 배는 흐려져 사라진다
+  if (near<=0) return;
+  ctx.globalAlpha=near; ctx.strokeText(p.name,x,y-cs*1.3); ctx.fillText(p.name,x,y-cs*1.3); ctx.globalAlpha=1;
 }
 function drawItems(camx,camy){
   for (const it of G.items){
@@ -1015,7 +1068,35 @@ function drawIslands(camx,camy){
     if (bi>=0&&bs>.01){ ctx.strokeStyle=G.players[bi].color; ctx.beginPath(); ctx.arc(x,y,r,-Math.PI/2,-Math.PI/2+Math.min(1,bs/ISL_NEED)*Math.PI*2); ctx.stroke(); }
     ctx.fillStyle=held?'rgba(255,248,220,.97)':'rgba(255,248,220,.78)'; ctx.beginPath(); ctx.arc(x,y,r*.78,0,7); ctx.fill();
     ctx.font=`${cs*1.05}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#000'; ctx.fillText(is.kind.icon,x,y+1);
+    // 점령 게이지 글자: 가장 많이 차지한 배의 비율 / 80%(기준). 내가 앞서면 금색
+    if (bs>.01&&G.tut<0){ const txt=Math.round(bs*100)+'%'+(held?'':' / '+ISL_NEED*100+'%');
+      ctx.font='700 12px "Gowun Batang",serif'; ctx.lineWidth=3; ctx.strokeStyle='rgba(18,30,45,.85)'; ctx.fillStyle=bi===0?'#FFD34D':'#fff';
+      ctx.strokeText(txt,x,y+r+14); ctx.fillText(txt,x,y+r+14); }
   }
+}
+// 화면 가장자리 화살표: 화면 밖에 있는 것(적·섬)이 어느 쪽에 있는지 알려 준다
+function edgeArrow(wx,wy,camx,camy,col,icon){
+  const sx=wx*cs-camx, sy=wy*cs-camy, cx=W/2, cy=H/2, dx=sx-cx, dy=sy-cy;
+  const x0=34, x1=W-34, y0=150, y1=H-130;
+  const t=Math.min(1,Math.abs(dx)>1e-6?((dx>0?x1:x0)-cx)/dx:1e9,Math.abs(dy)>1e-6?((dy>0?y1:y0)-cy)/dy:1e9);
+  const x=cx+dx*t, y=cy+dy*t, a=Math.atan2(dy,dx);
+  ctx.save(); ctx.translate(x,y); ctx.rotate(a); ctx.fillStyle=col; ctx.strokeStyle='rgba(18,30,45,.9)'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(14,0); ctx.lineTo(-8,-10); ctx.lineTo(-8,10); ctx.closePath(); ctx.stroke(); ctx.fill(); ctx.restore();
+  if (icon){ ctx.font='16px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#000'; ctx.fillText(icon,x-Math.cos(a)*22,y-Math.sin(a)*22); }
+}
+// 길잡이: 물길 위험(붉은 파동, 화면 밖이면 붉은 화살표)과 가까운 안 가진 섬 방향 화살표
+function drawGuides(camx,camy){
+  if (G.state!=='play'||G.tut>=0) return;
+  const me=G.players[0], pulse=.5+.5*Math.sin(G.t*10);
+  for (const d of G.danger||[]){
+    const x=d.x*cs-camx, y=d.y*cs-camy;
+    if (x<-20||y<-20||x>W+20||y>H+20){ edgeArrow(d.x,d.y,camx,camy,'#FF4A3D'); continue; }
+    ctx.strokeStyle='rgba(255,74,61,'+(.5+.4*pulse)+')'; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(x,y,cs*(1.6+.7*pulse),0,7); ctx.stroke(); }
+  let best=null, bd=1e9;
+  for (const is of G.islands){ if (is.owner===0) continue;
+    const x=is.x*cs-camx, y=is.y*cs-camy; if (x>=-30&&y>=-30&&x<=W+30&&y<=H+30) continue;
+    const d=Math.hypot(is.x-me.x,is.y-me.y); if (d<bd){ bd=d; best=is; } }
+  if (best&&bd<28) edgeArrow(best.x,best.y,camx,camy,'#E9B63A',best.kind.icon);
 }
 const shade=(hex,k)=>'#'+[1,3,5].map(i=>Math.round(parseInt(hex.slice(i,i+2),16)*k).toString(16).padStart(2,'0')).join('');
 function draw(){
@@ -1055,22 +1136,24 @@ function draw(){
     drawShip(me,camx,camy);
   }
   drawFx(camx,camy);
+  drawGuides(camx,camy);
   drawWx();
   drawJoy();
 }
 // 날씨 그림: 해류=흐름 방향으로 움직이는 화살표 무늬, 폭풍=어두운 막과 비줄기
 function drawWx(){
   if (G.state!=='play'&&G.state!=='over') return;
+  if (!(G.wxLv>.02)) return;
   if (G.wx==='current'){
     const gap=Math.max(110,W/4), a=G.cur, dx=Math.cos(a), dy=Math.sin(a), off=(G.t*40)%gap;
-    ctx.save(); ctx.strokeStyle='rgba(255,255,255,.16)'; ctx.lineWidth=3; ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.save(); ctx.strokeStyle='rgba(255,255,255,'+(.16*G.wxLv)+')'; ctx.lineWidth=3; ctx.lineCap='round'; ctx.lineJoin='round';
     for (let gx=-1;gx<W/gap+1;gx++) for (let gy=-1;gy<H/gap+1;gy++){
       const x=gx*gap+(gy%2?gap/2:0)+dx*off, y=gy*gap+dy*off, s=14;
       ctx.beginPath(); ctx.moveTo(x-dx*s-dy*s*.7,y-dy*s+dx*s*.7); ctx.lineTo(x,y); ctx.lineTo(x-dx*s+dy*s*.7,y-dy*s-dx*s*.7); ctx.stroke(); }
     ctx.restore();
   } else if (G.wx==='storm'){
-    ctx.fillStyle='rgba(10,18,35,.22)'; ctx.fillRect(0,0,W,H);
-    ctx.save(); ctx.strokeStyle='rgba(220,230,255,.28)'; ctx.lineWidth=2;
+    ctx.fillStyle='rgba(10,18,35,'+(.22*G.wxLv)+')'; ctx.fillRect(0,0,W,H);
+    ctx.save(); ctx.strokeStyle='rgba(220,230,255,'+(.28*G.wxLv)+')'; ctx.lineWidth=2;
     for (let k=0;k<60;k++){ const r1=(k*7919%1000)/1000, r2=(k*104729%1000)/1000, y=((r2*H+G.t*900)%(H+60))-30, x=((r1*W+G.t*250)%(W+60))-30;
       ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x-8,y+24); ctx.stroke(); }
     ctx.restore();
@@ -1085,6 +1168,11 @@ function frame(t){
     if (G.wx==='fog'){                      // 미니맵이 3~6초 보이고 2~4초 안 보임. 사라지기 직전 0.5초는 흐려져 알려 줌
       if ((G.fogT-=dt)<=0){ G.fogOn=!G.fogOn; G.fogT=G.fogOn?2+Math.random()*2:3+Math.random()*3; }
       $('mini').style.opacity=G.fogOn?0:G.fogT<.5?.4:1;
+    }
+    if (G.wx==='storm'||G.wx==='current'){
+      if ((G.wxT-=dt)<=0){ G.wxAct=!G.wxAct; G.wxT=G.wxAct?8+Math.random()*7:6+Math.random()*6; wxBadge(); }
+      else if (!G.wxAct&&G.wxT<2&&!G.wxWarn) wxBadge();
+      G.wxLv=Math.max(0,Math.min(1,G.wxLv+(G.wxAct?dt:-dt)*2));
     }
     if (G.tut>=0) tutorial(dt); else if (G.t>5) $('hint').hidden=true;
     updateFx(dt);
@@ -1184,8 +1272,19 @@ $('closeDock').onclick=$('backDock').onclick=()=>{ $('dock').hidden=true; showCh
 // 멈춤: 판 중에 잠깐 멈추거나 해도로 나간다(나가면 그때까지의 기록은 저장). 화면이 가려지면 자동으로 멈춘다
 // 판 도중 저장: 지금까지 번 금화와 격침·섬 기록을 저장한다(앱이 갑자기 꺼져도 남게). 10초마다, 그리고 멈출 때
 function bank(){ save.coins+=G.coins-(G.banked||0); G.banked=G.coins; store(); }
-function pauseGame(){ if (G.state!=='play') return; G.state='pause'; joy=null; $('pause').hidden=false; bank(); }
+function pauseGame(){
+  if (G.state!=='play') return; G.state='pause'; joy=null; $('pause').hidden=false; bank();
+  const me=G.players[0], rank=G.players.filter(p=>p.alive).sort((a,b)=>b.count-a.count);
+  $('pInfo').textContent='내 바다 '+(me.count/seaTotal*100).toFixed(1)+'% · '+(rank.indexOf(me)+1)+'위 / '+rank.length+'척';
+  $('pSound').textContent=save.set.sfx||save.set.bgm?'소리 끄기':'소리 켜기'; $('pRestart').textContent='다시 시작';
+}
 $('pauseBtn').onclick=pauseGame;
+$('pSound').onclick=()=>{ const on=save.set.sfx||save.set.bgm; save.set.sfx=save.set.bgm=on?0:1; store(); setWaves(); $('pSound').textContent=on?'소리 켜기':'소리 끄기'; };
+let restartT=-1e9;   // 실수로 누르지 않게 4초 안에 두 번 눌러야 다시 시작
+$('pRestart').onclick=()=>{
+  if (performance.now()-restartT>4000){ restartT=performance.now(); $('pRestart').textContent='정말요? 한 번 더 누르면 지금 판을 끝내고 다시 시작'; return; }
+  restartT=-1e9; const s=G.sea, c=G.custom; $('pause').hidden=true; G.state='play'; endRound(false,true); startRound(s,c);
+};
 $('pResume').onclick=()=>{ $('pause').hidden=true; if (G.state==='pause') G.state='play'; };
 $('pExit').onclick=()=>{ $('pause').hidden=true; G.state='play'; endRound(false,true); showChart(); };
 addEventListener('popstate',()=>{            // 폰의 뒤로 버튼: 열린 화면 닫기 → 판 중이면 멈춤 → 결과 화면이면 해도로
@@ -1216,7 +1315,8 @@ function showChart(){
       const open=i===0||save.prog[i-1]>=100, done=save.prog[i]>=100;
       return `<button class="stop ${open?'':'locked'} ${done?'done':''}" data-i="${i}" ${open?'':'disabled'}>
         <canvas width="104" height="104"></canvas><span class="txt"><span class="name brush">${s.name}</span>
-        <span class="prog">${open?(done?'정복 완료':'정복도 '+save.prog[i]+'%'):'앞 바다를 정복하면 열려요'}</span></span></button>`;
+        <span class="prog">${open?(done?'정복 완료':'정복도 '+save.prog[i]+'%')+(save.top[i]>0?' · 최고 '+(save.top[i]*100).toFixed(1)+'%':''):'앞 바다를 정복하면 열려요'}</span>
+        <span class="prog">${s.wx?WX_ICON[s.wx]+' '+WX_RULE[s.wx].split(':')[0]:'🌤️ 잔잔한 바다'}</span></span></button>`;
     }).join('');
   document.querySelectorAll('.stop').forEach(b=>{
     const i=+b.dataset.i, m=landMask(SEAS[i]), c=b.querySelector('canvas').getContext('2d'), k=104/N;
