@@ -1417,7 +1417,10 @@ addEventListener('popstate',()=>{            // 폰의 뒤로 버튼: 열린 화
   else if (G.state==='play') pauseGame();
   else if (G.state==='over'){ $('chest').hidden=true; showChart(); }
 });
-document.addEventListener('visibilitychange',()=>{ if (document.hidden) pauseGame(); });
+// 화면이 숨겨지거나 페이지가 닫히면 소리 장치도 멈추고(파도 소리 포함), 돌아오면 다시 켠다
+function muteAudio(){ if (AC&&AC.state==='running') AC.suspend(); }
+document.addEventListener('visibilitychange',()=>{ if (document.hidden){ pauseGame(); muteAudio(); } else if (AC&&AC.state==='suspended') AC.resume(); });
+addEventListener('pagehide',muteAudio);
 // 시작 화면의 배 전시대: 내 배가 물길을 끌며 천천히 떠 있다
 const sc=$('showcase').getContext('2d');
 function drawShowcase(t){
